@@ -1,0 +1,17 @@
+{
+  "report": {
+    "generated_at": "Generato il", "agency": "Ente richiedente", "operator": "Operatore",
+    "role": "Ruolo", "purpose": "Finalita", "database": "Base dati", "classification": "Classificazione",
+    "results": "Risultati", "bound_violations": "Violazioni del bound", "exclusions_proved": "Esclusioni provate",
+    "algorithm": "Algoritmo", "signature": "Firma", "signature_type": "Tipo di firma",
+    "worm_hash": "Hash WORM", "blockchain_tx": "Transazione blockchain", "assessment": "Valutazione",
+    "disclaimer": "Avvertenza", "self_assessment": "autovalutazione — non certificato",
+    "mathematical_proof": "Prova matematica",
+    "proved_exclusion": "documento provabilmente fuori dal top-K via Cauchy-Schwarz",
+    "survived": "documento ha superato tutti i controlli del bound", "framework": "Quadro giuridico"
+  },
+  "gdpr": { "title": "RELAZIONE GDPR — Art. 22", "subtitle": "Decisioni automatizzate compresa la profilazione", "regulation": "GDPR", "articles_mapped": ["Art. 22", "Art. 13-15", "Art. 35 (DPIA)"] },
+  "trasparenza": { "title": "RELAZIONE DI TRASPARENZA — D.Lgs. 33/2013", "subtitle": "Accesso civico", "regulation": "D.Lgs. 33/2013", "articles_mapped": ["Art. 5", "Art. 6"] },
+  "corte_conti": { "title": "RELAZIONE DELLA CORTE DEI CONTI", "subtitle": "Controllo di legalita", "protocol": "Protocollo" },
+  "common": { "yes": "SI", "no": "NO", "winnex_credit": "Winnex AI | licensing@winnex.ai | BSL 1.1" }
+}

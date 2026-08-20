@@ -1,0 +1,43 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+
+# --- Secrets & credentials (NEVER commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*secret*
+*credential*
+secrets/
+credentials/
+*.token
+*api_key*
+
+# --- Internal engineering docs / analyses / prompts (NOT public) ---
+internal/
+internal-notes/
+docs/internal/
+*ANALISE*
+*ESTUDO*
+*PLANO*
+*PLAN*
+*PROMPT*
+*.notes.md
+pre_patent_specs/
+
+# --- Runtime data ---
+worm/
+filestore/
+access-log/
+*.log
+*.jsonl

@@ -1,0 +1,73 @@
+{
+  "version": "2.0.0",
+  "description": "Espana — LOPDGDD (Ley 3/2018), Ley 19/2013 de Transparencia. Herda eu-gv.",
+  "mode": {
+    "supported": ["public", "internal"],
+    "default": "public"
+  },
+  "required_fields": [
+    "organismo_solicitante",
+    "identificador_operador",
+    "funcion",
+    "base_de_datos",
+    "sensibilidad",
+    "finalidad"
+  ],
+  "sensitivity": {
+    "public": {
+      "description": "Datos publicos — Ley 19/2013",
+      "retention_years": 5,
+      "required_signature": "DNIe",
+      "legal_basis": "Ley 19/2013 de Transparencia"
+    },
+    "restricted": {
+      "description": "Datos restringidos — LOPDGDD",
+      "retention_years": 10,
+      "required_signature": "DNIe",
+      "legal_basis": "LOPDGDD + RGPD"
+    },
+    "secret": {
+      "description": "Datos secretos — seguridad nacional",
+      "retention_years": 20,
+      "required_signature": "DNIe",
+      "legal_basis": "Ley de Seguridad Nacional"
+    }
+  },
+  "agencies": {
+    "default": {
+      "retention_years": 5,
+      "minimum_signature": "DNIe",
+      "require_blockchain": false
+    },
+    "Tribunal de Cuentas": {
+      "retention_years": 10,
+      "minimum_signature": "DNIe",
+      "require_blockchain": true,
+      "legal_basis": "Ley 7/1988"
+    },
+    "AEPD": {
+      "retention_years": 10,
+      "minimum_signature": "DNIe",
+      "require_blockchain": true,
+      "legal_basis": "LOPDGDD + RGPD"
+    }
+  },
+  "retention": {
+    "default": 5,
+    "salud": 20,
+    "financiero": 10,
+    "administrativo": 5,
+    "inteligencia": 20
+  },
+  "signature": {
+    "supported_algorithms": ["Ed25519", "DNIe"],
+    "default_algorithm": "Ed25519",
+    "hash_algorithm": "sha3_256"
+  },
+  "compliance_frameworks": [
+    "LOPDGDD",
+    "Ley_19_2013",
+    "EU_AI_Act",
+    "eIDAS"
+  ]
+}

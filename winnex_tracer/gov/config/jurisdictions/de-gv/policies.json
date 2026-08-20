@@ -1,0 +1,20 @@
+{
+  "version": "2.0.0",
+  "description": "Deutschland — BDSG (DSGVO-Umsetzung), IFG (Informationsfreiheitsgesetz). Erbt von eu-gv.",
+  "mode": { "supported": ["public", "internal"], "default": "public" },
+  "required_fields": ["anfordernde_behoerde", "operator_id", "rolle", "datenbank", "sensibilitaet", "zweck"],
+  "sensitivity": {
+    "public": { "description": "Öffentliche Daten — IFG", "retention_years": 5, "required_signature": "eIDAS", "legal_basis": "IFG (Informationsfreiheitsgesetz)" },
+    "restricted": { "description": "Eingeschränkte Daten — DSGVO", "retention_years": 10, "required_signature": "eIDAS", "legal_basis": "DSGVO + BDSG" },
+    "secret": { "description": "Geheim — Verschlusssachen", "retention_years": 20, "required_signature": "eIDAS", "legal_basis": "VS-Anweisungen" }
+  },
+  "agencies": {
+    "default": { "retention_years": 5, "minimum_signature": "eIDAS", "require_blockchain": false },
+    "Bundesrechnungshof": { "retention_years": 10, "minimum_signature": "eIDAS", "require_blockchain": true, "legal_basis": "BHO (Bundeshaushaltsordnung)" },
+    "BfDI": { "retention_years": 10, "minimum_signature": "eIDAS", "require_blockchain": true, "legal_basis": "DSGVO + BDSG" },
+    "IFG-Beauftragter": { "retention_years": 5, "minimum_signature": "eIDAS", "require_blockchain": false, "legal_basis": "IFG" }
+  },
+  "retention": { "default": 5, "gesundheit": 20, "finanzen": 10, "verwaltung": 5, "nachrichtendienst": 20 },
+  "signature": { "supported_algorithms": ["Ed25519", "eIDAS"], "default_algorithm": "Ed25519", "hash_algorithm": "sha3_256" },
+  "compliance_frameworks": ["DSGVO", "IFG", "EU_AI_Act", "eIDAS"]
+}

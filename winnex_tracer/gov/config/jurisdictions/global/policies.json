@@ -1,0 +1,73 @@
+{
+  "version": "2.0.0",
+  "description": "Global base policies — inherited by all jurisdictions",
+  "mode": {
+    "supported": ["public", "internal"],
+    "default": "public",
+    "public": {
+      "description": "Operate on public/open government data",
+      "auth_required": false
+    },
+    "internal": {
+      "description": "Government-adopted operation on internal data",
+      "auth_required": true,
+      "auth_hint": "Deployer must configure credentials for internal mode"
+    }
+  },
+  "required_fields": [
+    "requesting_agency",
+    "operator_id",
+    "role",
+    "source_database",
+    "sensitivity",
+    "purpose"
+  ],
+  "sensitivity": {
+    "public": {
+      "description": "Public data — open by law",
+      "retention_years": 5,
+      "required_signature": "Ed25519",
+      "legal_basis": "Open data / FOI law"
+    },
+    "restricted": {
+      "description": "Restricted data — limited access",
+      "retention_years": 10,
+      "required_signature": "Ed25519",
+      "legal_basis": "Privacy law"
+    },
+    "secret": {
+      "description": "Secret data — highest classification",
+      "retention_years": 20,
+      "required_signature": "Ed25519",
+      "legal_basis": "State secrets law"
+    }
+  },
+  "retention": {
+    "default": 5,
+    "health": 20,
+    "financial": 10,
+    "administrative": 5,
+    "intelligence": 20
+  },
+  "signature": {
+    "supported_algorithms": ["Ed25519"],
+    "default_algorithm": "Ed25519",
+    "hash_algorithm": "sha3_256"
+  },
+  "blockchain": {
+    "supported_chains": ["polygon", "ethereum", "avalanche", "hedera"],
+    "default_chain": "polygon",
+    "max_gas": 500000
+  },
+  "worm": {
+    "file_format": "jsonl",
+    "max_bytes_per_block": 10485760,
+    "hash_chain_algorithm": "sha3_256"
+  },
+  "compliance_frameworks": {
+    "default": [
+      "open_government",
+      "data_protection"
+    ]
+  }
+}

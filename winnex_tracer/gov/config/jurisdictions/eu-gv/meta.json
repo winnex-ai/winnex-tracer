@@ -1,0 +1,8 @@
+{
+  "code": "eu-gv",
+  "name": "European Union — Union Level",
+  "language": "en",
+  "parent": "global",
+  "region": null,
+  "description": "European Union — GDPR, EU AI Act, eIDAS, Regulation (EU) 2018/1725. Parent for EU member states."
+}

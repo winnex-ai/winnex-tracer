@@ -1,0 +1,52 @@
+{
+  "report": {
+    "generated_at": "Generated at",
+    "agency": "Requesting agency",
+    "operator": "Operator",
+    "role": "Role",
+    "purpose": "Purpose",
+    "database": "Source database",
+    "classification": "Classification",
+    "results": "Results",
+    "bound_violations": "Bound violations",
+    "exclusions_proved": "Exclusions proved",
+    "algorithm": "Algorithm",
+    "signature": "Signature",
+    "signature_type": "Signature type",
+    "worm_hash": "WORM hash",
+    "blockchain_tx": "Blockchain transaction",
+    "assessment": "Assessment",
+    "disclaimer": "Disclaimer",
+    "self_assessment": "self-assessment — not certified",
+    "mathematical_proof": "Mathematical proof",
+    "proved_exclusion": "document provably outside top-K via Cauchy-Schwarz",
+    "survived": "document passed all bound checks",
+    "framework": "Legal framework"
+  },
+  "foia": {
+    "title": "FOIA REPORT — 5 U.S.C. §552",
+    "subtitle": "Freedom of Information Act",
+    "regulation": "FOIA",
+    "articles_mapped": ["5 U.S.C. §552", "5 U.S.C. §552a (Privacy Act)"]
+  },
+  "hipaa": {
+    "title": "HIPAA AUDIT TRAIL — 45 CFR §164.312",
+    "subtitle": "Health Insurance Portability and Accountability Act",
+    "regulation": "HIPAA",
+    "articles_mapped": ["45 CFR §164.308", "45 CFR §164.312"]
+  },
+  "gao": {
+    "title": "GAO ACCOUNTABILITY REPORT",
+    "subtitle": "Government Accountability Office",
+    "protocol": "Protocol"
+  },
+  "oig": {
+    "title": "OIG OVERSIGHT REPORT",
+    "subtitle": "Office of Inspector General"
+  },
+  "common": {
+    "yes": "YES",
+    "no": "NO",
+    "winnex_credit": "Winnex AI | licensing@winnex.ai | BSL 1.1"
+  }
+}

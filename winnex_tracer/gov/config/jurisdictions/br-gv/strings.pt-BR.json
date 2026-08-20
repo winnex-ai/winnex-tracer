@@ -1,0 +1,62 @@
+{
+  "report": {
+    "generated_at": "Gerado em",
+    "agency": "Orgao requisitante",
+    "operator": "Operador",
+    "role": "Funcao",
+    "purpose": "Finalidade",
+    "database": "Base de dados",
+    "classification": "Classificacao",
+    "results": "Resultados",
+    "bound_violations": "Violacoes de bound",
+    "exclusions_proved": "Exclusoes comprovadas",
+    "algorithm": "Algoritmo",
+    "signature": "Assinatura",
+    "signature_type": "Tipo de assinatura",
+    "worm_hash": "Hash WORM",
+    "blockchain_tx": "Transacao blockchain",
+    "assessment": "Avaliacao",
+    "disclaimer": "Aviso",
+    "self_assessment": "auto-avaliacao — nao certificado",
+    "mathematical_proof": "Prova matematica",
+    "proved_exclusion": "documento provavelmente fora do top-K via Cauchy-Schwarz",
+    "survived": "documento passou em todas as verificacoes de bound",
+    "framework": "Marco legal"
+  },
+  "lgpd": {
+    "title": "RELATORIO LGPD — Art. 20",
+    "subtitle": "Direito de revisao de decisoes automatizadas",
+    "regulation": "LGPD",
+    "article": "Art. 20",
+    "documents_analyzed": "Documentos analisados",
+    "results_returned": "Resultados retornados",
+    "documents_excluded": "Documentos excluidos",
+    "evidence": [
+      "Prova matematica por documento",
+      "Trilha de auditoria com hash chain",
+      "Assinatura digital"
+    ]
+  },
+  "lai": {
+    "title": "RELATORIO LAI — Lei 12.527/2011",
+    "subtitle": "Lei de Acesso a Informacao",
+    "regulation": "Lei 12.527/2011",
+    "articles_mapped": ["Art. 3", "Art. 7", "Art. 10", "Art. 23"]
+  },
+  "tcu": {
+    "title": "RELATORIO DE PRESTACAO DE CONTAS",
+    "subtitle": "Tribunal de Contas da Uniao",
+    "protocol": "Protocolo",
+    "responsible_party": "Parte responsavel",
+    "operation": "Operacao"
+  },
+  "cgu": {
+    "title": "RELATORIO DE TRANSPARENCIA",
+    "subtitle": "Controladoria-Geral da Uniao"
+  },
+  "common": {
+    "yes": "SIM",
+    "no": "NAO",
+    "winnex_credit": "Winnex AI | licensing@winnex.ai | BSL 1.1"
+  }
+}

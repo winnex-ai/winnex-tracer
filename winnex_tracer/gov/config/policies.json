@@ -1,0 +1,92 @@
+{
+  "version": "1.0.0",
+  "description": "Tracer-GOV policies — configure without hardcoded values",
+  "required_fields": [
+    "requesting_agency",
+    "cpf",
+    "role",
+    "source_database",
+    "sensitivity",
+    "purpose"
+  ],
+  "sensitivity": {
+    "public": {
+      "description": "Public data — Freedom of Information Law Art. 3",
+      "retention_years": 5,
+      "required_signature": "Ed25519",
+      "legal_basis": "Law 12.527/2011 (LAI)"
+    },
+    "restricted": {
+      "description": "Restricted data — LAI Art. 23",
+      "retention_years": 10,
+      "required_signature": "ICP-Brasil",
+      "legal_basis": "LGPD Art. 20 + Law 12.527/2011"
+    },
+    "secret": {
+      "description": "Secret data — LAI Art. 24",
+      "retention_years": 20,
+      "required_signature": "ICP-Brasil",
+      "legal_basis": "Law 9.883/1999 + LAI Art. 24"
+    }
+  },
+  "agencies": {
+    "default": {
+      "retention_years": 5,
+      "minimum_signature": "Ed25519",
+      "require_blockchain": false
+    },
+    "SUS": {
+      "retention_years": 20,
+      "minimum_signature": "ICP-Brasil",
+      "require_blockchain": true,
+      "default_source_database": "DATASUS",
+      "legal_basis": "Law 8.080/1990"
+    },
+    "TCU": {
+      "retention_years": 10,
+      "minimum_signature": "ICP-Brasil",
+      "require_blockchain": true,
+      "legal_basis": "Law 8.443/1992"
+    },
+    "CGU": {
+      "retention_years": 10,
+      "minimum_signature": "ICP-Brasil",
+      "require_blockchain": true,
+      "legal_basis": "Law 12.527/2011"
+    },
+    "Receita Federal": {
+      "retention_years": 10,
+      "minimum_signature": "ICP-Brasil",
+      "require_blockchain": true
+    },
+    "Ministerio da Saude": {
+      "retention_years": 20,
+      "minimum_signature": "ICP-Brasil",
+      "require_blockchain": true,
+      "default_source_database": "DATASUS",
+      "legal_basis": "Law 8.080/1990"
+    }
+  },
+  "retention": {
+    "default": 5,
+    "health": 20,
+    "financial": 10,
+    "administrative": 5,
+    "intelligence": 20
+  },
+  "blockchain": {
+    "supported_chains": ["polygon", "ethereum", "avalanche", "hedera"],
+    "default_chain": "polygon",
+    "max_gas": 500000
+  },
+  "signature": {
+    "supported_algorithms": ["Ed25519", "ICP-Brasil"],
+    "default_algorithm": "Ed25519",
+    "hash_algorithm": "sha3_256"
+  },
+  "worm": {
+    "file_format": "jsonl",
+    "max_bytes_per_block": 10485760,
+    "hash_chain_algorithm": "sha3_256"
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "version": "2.0.0",
+  "description": "European Union — GDPR, EU AI Act, eIDAS. Inherited by EU member states (pt-gv, es-gv, fr-gv, ...).",
+  "mode": {
+    "supported": ["public", "internal"],
+    "default": "public"
+  },
+  "required_fields": [
+    "requesting_agency",
+    "operator_id",
+    "role",
+    "source_database",
+    "sensitivity",
+    "purpose"
+  ],
+  "sensitivity": {
+    "public": {
+      "description": "Public data — open government",
+      "retention_years": 5,
+      "required_signature": "eIDAS",
+      "legal_basis": "Regulation (EU) 2018/1725"
+    },
+    "restricted": {
+      "description": "Restricted — personal data under GDPR",
+      "retention_years": 10,
+      "required_signature": "eIDAS",
+      "legal_basis": "GDPR Art. 22"
+    },
+    "secret": {
+      "description": "Secret — national security",
+      "retention_years": 20,
+      "required_signature": "eIDAS",
+      "legal_basis": "National security law"
+    }
+  },
+  "agencies": {
+    "default": {
+      "retention_years": 5,
+      "minimum_signature": "eIDAS",
+      "require_blockchain": false
+    },
+    "European Commission": {
+      "retention_years": 10,
+      "minimum_signature": "eIDAS",
+      "require_blockchain": true,
+      "legal_basis": "Regulation (EU) 2018/1725"
+    },
+    "EDPB": {
+      "retention_years": 10,
+      "minimum_signature": "eIDAS",
+      "require_blockchain": true,
+      "legal_basis": "GDPR Art. 68-76"
+    },
+    "ENISA": {
+      "retention_years": 10,
+      "minimum_signature": "eIDAS",
+      "require_blockchain": true,
+      "legal_basis": "Regulation (EU) 2019/881"
+    },
+    "European Court of Auditors": {
+      "retention_years": 10,
+      "minimum_signature": "eIDAS",
+      "require_blockchain": true,
+      "legal_basis": "Treaty on the Functioning of the EU, Art. 285"
+    }
+  },
+  "retention": {
+    "default": 5,
+    "health": 20,
+    "financial": 10,
+    "administrative": 5,
+    "intelligence": 20
+  },
+  "signature": {
+    "supported_algorithms": ["Ed25519", "eIDAS"],
+    "default_algorithm": "Ed25519",
+    "hash_algorithm": "sha3_256"
+  },
+  "compliance_frameworks": [
+    "GDPR",
+    "EU_AI_Act",
+    "eIDAS",
+    "Open_Data_Directive"
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "version": "2.0.0",
+  "description": "Brasil — Governo Federal. LGPD, LAI 12.527/2011, Marco Legal 14.129/2021.",
+  "mode": {
+    "supported": ["public", "internal"],
+    "default": "public"
+  },
+  "required_fields": [
+    "orgao_requisitante",
+    "cpf",
+    "funcao",
+    "base_de_dados",
+    "sensibilidade",
+    "finalidade"
+  ],
+  "sensitivity": {
+    "public": {
+      "description": "Dados públicos — LAI Art. 3",
+      "retention_years": 5,
+      "required_signature": "Ed25519",
+      "legal_basis": "Lei 12.527/2011 (LAI)"
+    },
+    "restricted": {
+      "description": "Dados restritos — LAI Art. 23",
+      "retention_years": 10,
+      "required_signature": "ICP-Brasil",
+      "legal_basis": "LGPD Art. 20 + Lei 12.527/2011"
+    },
+    "secret": {
+      "description": "Dados secretos — LAI Art. 24",
+      "retention_years": 20,
+      "required_signature": "ICP-Brasil",
+      "legal_basis": "Lei 9.883/1999 + LAI Art. 24"
+    }
+  },
+  "agencies": {
+    "default": {
+      "retention_years": 5,
+      "minimum_signature": "Ed25519",
+      "require_blockchain": false
+    },
+    "TCU": {
+      "retention_years": 10,
+      "minimum_signature": "ICP-Brasil",
+      "require_blockchain": true,
+      "legal_basis": "Lei 8.443/1992"
+    },
+    "CGU": {
+      "retention_years": 10,
+      "minimum_signature": "ICP-Brasil",
+      "require_blockchain": true,
+      "legal_basis": "Lei 12.527/2011"
+    },
+    "Receita Federal": {
+      "retention_years": 10,
+      "minimum_signature": "ICP-Brasil",
+      "require_blockchain": true
+    },
+    "Ministerio da Saude": {
+      "retention_years": 20,
+      "minimum_signature": "ICP-Brasil",
+      "require_blockchain": true,
+      "default_source_database": "DATASUS",
+      "legal_basis": "Lei 8.080/1990"
+    }
+  },
+  "states": {
+    "default": {
+      "name": "Estado",
+      "retention_years": 5,
+      "minimum_signature": "Ed25519"
+    },
+    "go": {
+      "name": "Goias",
+      "agency": "Controladoria-Geral do Estado de Goias",
+      "retention_years": 10,
+      "minimum_signature": "ICP-Brasil",
+      "legal_basis": "Lei Estadual 14.129/2021 adaptada"
+    },
+    "sp": {
+      "name": "Sao Paulo",
+      "agency": "Controladoria Geral do Estado de Sao Paulo",
+      "retention_years": 10,
+      "minimum_signature": "ICP-Brasil"
+    },
+    "rj": {
+      "name": "Rio de Janeiro",
+      "agency": "Controladoria Geral do Estado do Rio de Janeiro",
+      "retention_years": 10,
+      "minimum_signature": "ICP-Brasil"
+    },
+    "mg": {
+      "name": "Minas Gerais",
+      "agency": "Controladoria-Geral do Estado de Minas Gerais",
+      "retention_years": 10,
+      "minimum_signature": "ICP-Brasil"
+    }
+  },
+  "retention": {
+    "default": 5,
+    "saude": 20,
+    "financeiro": 10,
+    "administrativo": 5,
+    "inteligencia": 20
+  },
+  "signature": {
+    "supported_algorithms": ["Ed25519", "ICP-Brasil"],
+    "default_algorithm": "Ed25519",
+    "hash_algorithm": "sha3_256"
+  },
+  "compliance_frameworks": [
+    "LGPD_Art20",
+    "LAI_12527",
+    "MarcoLegal_14129",
+    "EU_AI_Act_proj"
+  ]
+}

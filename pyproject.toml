@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "winnex-tracer"
+version = "1.0.0"
+description = "The unified Winnex tracer family — shared core (WORM, Ed25519 signing, AuditCommitment) plus the gov/med/jus/gap domains, in one namespaced package."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Winnex Brasil Soluções Empresariais LTDA-ME", email = "pay@winnex.ai" },
+]
+keywords = [
+    "audit", "worm", "ed25519", "compliance", "vector-search", "proof",
+    "cauchy-schwarz", "tracer", "lgpd", "gdpr", "hipaa", "signature",
+    "government", "healthcare", "legal", "financial", "non-repudiation",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Other Audience",
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+signature = ["pynacl>=1.5"]
+madhava = ["winnex-madhava>=1.9.2"]
+gov = ["fastapi>=0.100", "uvicorn>=0.20"]
+med = ["fastapi>=0.100", "uvicorn>=0.20", "sentence-transformers>=2.2"]
+jus = ["fastapi>=0.100", "uvicorn>=0.20", "sentence-transformers>=2.2"]
+gap = ["fastapi>=0.100", "uvicorn>=0.20", "sentence-transformers>=2.2"]
+pg = ["psycopg2-binary>=2.9"]
+blockchain = ["web3>=6.0"]
+all = [
+    "pynacl>=1.5",
+    "winnex-madhava>=1.9.2",
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+    "sentence-transformers>=2.2",
+    "psycopg2-binary>=2.9",
+    "web3>=6.0",
+]
+
+[project.urls]
+Homepage = "https://winnex.ai"
+Source = "https://github.com/winnex-ai/winnex-tracer"
+
+[tool.pytest.ini_options]
+testpaths = ["winnex_tracer/tests"]
+
+[tool.setuptools.packages.find]
+include = ["winnex_tracer*"]
+
+[tool.setuptools.package-data]
+"winnex_tracer.gov" = ["config/**/*.json", "config/**/*.abi", "config/*.json", "config/*.abi"]

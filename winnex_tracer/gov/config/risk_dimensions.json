@@ -1,0 +1,41 @@
+{
+  "version": "1.0.0",
+  "description": "Tracer-Risk dimension configuration — configure exposure and outcome dimensions without hardcoded values",
+  "projection_dim": 64,
+  "displacement_threshold": 0.15,
+  "chain_significance": 0.25,
+  "alert_threshold_amber": 0.25,
+  "alert_threshold_red": 0.40,
+  "exposure_categories": {
+    "environmental": {
+      "description": "Environmental risk factors",
+      "default_alert_threshold": 0.20
+    },
+    "behavioral": {
+      "description": "Behavioral risk factors",
+      "default_alert_threshold": 0.25
+    },
+    "occupational": {
+      "description": "Occupational risk factors",
+      "default_alert_threshold": 0.20
+    },
+    "chemical": {
+      "description": "Chemical exposure risk factors",
+      "default_alert_threshold": 0.30
+    }
+  },
+  "outcome_categories": {
+    "hospital_cost": {
+      "description": "Hospitalization and treatment costs"
+    },
+    "mortality": {
+      "description": "Mortality rates"
+    },
+    "admission": {
+      "description": "Hospital admission rates"
+    },
+    "medication": {
+      "description": "Medication expenditure"
+    }
+  }
+}

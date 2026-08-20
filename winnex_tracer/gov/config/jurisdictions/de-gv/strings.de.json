@@ -1,0 +1,17 @@
+{
+  "report": {
+    "generated_at": "Erstellt am", "agency": "Anfordernde Behorde", "operator": "Betreiber",
+    "role": "Rolle", "purpose": "Zweck", "database": "Datenbank", "classification": "Klassifikation",
+    "results": "Ergebnisse", "bound_violations": "Bound-Verletzungen", "exclusions_proved": "Bewiesene Ausschlusse",
+    "algorithm": "Algorithmus", "signature": "Signatur", "signature_type": "Signaturtyp",
+    "worm_hash": "WORM-Hash", "blockchain_tx": "Blockchain-Transaktion", "assessment": "Bewertung",
+    "disclaimer": "Hinweis", "self_assessment": "Selbstbewertung — nicht zertifiziert",
+    "mathematical_proof": "Mathematischer Beweis",
+    "proved_exclusion": "Dokument nachweislich außerhalb des Top-K via Cauchy-Schwarz",
+    "survived": "Dokument hat alle Bound-Prufungen bestanden", "framework": "Rechtsrahmen"
+  },
+  "dsgvo": { "title": "DSGVO-BERICHT — Art. 22", "subtitle": "Automatisierte Entscheidungen einschließlich Profiling", "regulation": "DSGVO", "articles_mapped": ["Art. 22", "Art. 13-15", "Art. 35 (DPIA)"] },
+  "ifg": { "title": "IFG-BERICHT — Informationsfreiheitsgesetz", "subtitle": "Auskunftsrecht", "regulation": "IFG", "articles_mapped": ["§ 1", "§ 2"] },
+  "brh": { "title": "BERICHT DES BUNDESRECHNUNGSHOFS", "subtitle": "Finanzkontrolle", "protocol": "Protokoll" },
+  "common": { "yes": "JA", "no": "NEIN", "winnex_credit": "Winnex AI | licensing@winnex.ai | BSL 1.1" }
+}

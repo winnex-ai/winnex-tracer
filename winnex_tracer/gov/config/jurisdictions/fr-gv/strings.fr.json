@@ -1,0 +1,48 @@
+{
+  "report": {
+    "generated_at": "Genere le",
+    "agency": "Organisme demandeur",
+    "operator": "Operateur",
+    "role": "Fonction",
+    "purpose": "Finalite",
+    "database": "Base de donnees",
+    "classification": "Classification",
+    "results": "Resultats",
+    "bound_violations": "Violations de borne",
+    "exclusions_proved": "Exclusions prouvees",
+    "algorithm": "Algorithme",
+    "signature": "Signature",
+    "signature_type": "Type de signature",
+    "worm_hash": "Hash WORM",
+    "blockchain_tx": "Transaction blockchain",
+    "assessment": "Evaluation",
+    "disclaimer": "Avertissement",
+    "self_assessment": "auto-evaluation — non certifie",
+    "mathematical_proof": "Preuve mathematique",
+    "proved_exclusion": "document prouvablement hors du top-K via Cauchy-Schwarz",
+    "survived": "document ayant passe toutes les verifications de borne",
+    "framework": "Cadre juridique"
+  },
+  "rgpd": {
+    "title": "RAPPORT RGPD — Art. 22",
+    "subtitle": "Decisions automatisees y compris le profilage",
+    "regulation": "RGPD",
+    "articles_mapped": ["Art. 22", "Art. 13-15", "Art. 35 (AIPD)"]
+  },
+  "cada": {
+    "title": "RAPPORT CADA — Loi du 17 juillet 1978",
+    "subtitle": "Acces aux documents administratifs",
+    "regulation": "CADA",
+    "articles_mapped": ["Art. 1", "Art. 6"]
+  },
+  "cour_comptes": {
+    "title": "RAPPORT DE LA COUR DES COMPTES",
+    "subtitle": "Controle des finances publiques",
+    "protocol": "Protocole"
+  },
+  "common": {
+    "yes": "OUI",
+    "no": "NON",
+    "winnex_credit": "Winnex AI | licensing@winnex.ai | BSL 1.1"
+  }
+}

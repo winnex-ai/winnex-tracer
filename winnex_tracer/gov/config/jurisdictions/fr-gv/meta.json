@@ -1,0 +1,8 @@
+{
+  "code": "fr-gv",
+  "name": "France — Gouvernement",
+  "language": "fr",
+  "parent": "eu-gv",
+  "region": "eu-gv",
+  "description": "France — RGPD (loi 78-17), CADA, Commission Nationale de l'Informatique et des Libertes (CNIL)."
+}

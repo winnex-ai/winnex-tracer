@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "description": "Italia — D.Lgs. 196/2003 (Codice Privacy), D.Lgs. 33/2013 (Trasparenza). Eredita eu-gv.",
+  "mode": { "supported": ["public", "internal"], "default": "public" },
+  "required_fields": ["ente_richiedente", "identificativo_operatore", "ruolo", "base_dati", "sensibilita", "finalita"],
+  "sensitivity": {
+    "public": { "description": "Dati pubblici — D.Lgs. 33/2013", "retention_years": 5, "required_signature": "CIE", "legal_basis": "D.Lgs. 33/2013 (Trasparenza)" },
+    "restricted": { "description": "Dati riservati — GDPR", "retention_years": 10, "required_signature": "CIE", "legal_basis": "GDPR + D.Lgs. 196/2003" },
+    "secret": { "description": "Dati segreti — sicurezza nazionale", "retention_years": 20, "required_signature": "CIE", "legal_basis": "Legge 124/2007" }
+  },
+  "agencies": {
+    "default": { "retention_years": 5, "minimum_signature": "CIE", "require_blockchain": false },
+    "Corte dei conti": { "retention_years": 10, "minimum_signature": "CIE", "require_blockchain": true, "legal_basis": "Legge 20/1994" },
+    "Garante Privacy": { "retention_years": 10, "minimum_signature": "CIE", "require_blockchain": true, "legal_basis": "GDPR + D.Lgs. 196/2003" }
+  },
+  "retention": { "default": 5, "salute": 20, "finanziario": 10, "amministrativo": 5, "intelligence": 20 },
+  "signature": { "supported_algorithms": ["Ed25519", "CIE"], "default_algorithm": "Ed25519", "hash_algorithm": "sha3_256" },
+  "compliance_frameworks": ["GDPR", "Trasparenza", "EU_AI_Act", "eIDAS"]
+}

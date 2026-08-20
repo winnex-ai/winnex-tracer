@@ -1,0 +1,79 @@
+{
+  "version": "2.0.0",
+  "description": "France — loi 78-17 (RGPD), CADA, CNIL. Herite de eu-gv.",
+  "mode": {
+    "supported": ["public", "internal"],
+    "default": "public"
+  },
+  "required_fields": [
+    "organisme_demandeur",
+    "identifiant_operateur",
+    "fonction",
+    "base_de_donnees",
+    "sensibilite",
+    "finalite"
+  ],
+  "sensitivity": {
+    "public": {
+      "description": "Donnees publiques — CADA",
+      "retention_years": 5,
+      "required_signature": "eIDAS",
+      "legal_basis": "Loi du 17 juillet 1978 (CADA)"
+    },
+    "restricted": {
+      "description": "Donnees restreintes — RGPD",
+      "retention_years": 10,
+      "required_signature": "eIDAS",
+      "legal_basis": "loi 78-17 + RGPD"
+    },
+    "secret": {
+      "description": "Donnees secretes — defense",
+      "retention_years": 20,
+      "required_signature": "eIDAS",
+      "legal_basis": "Code de la defense (secret defense)"
+    }
+  },
+  "agencies": {
+    "default": {
+      "retention_years": 5,
+      "minimum_signature": "eIDAS",
+      "require_blockchain": false
+    },
+    "Cour des comptes": {
+      "retention_years": 10,
+      "minimum_signature": "eIDAS",
+      "require_blockchain": true,
+      "legal_basis": "Code des juridictions financieres"
+    },
+    "CNIL": {
+      "retention_years": 10,
+      "minimum_signature": "eIDAS",
+      "require_blockchain": true,
+      "legal_basis": "loi 78-17 + RGPD"
+    },
+    "CADA": {
+      "retention_years": 5,
+      "minimum_signature": "eIDAS",
+      "require_blockchain": false,
+      "legal_basis": "Loi du 17 juillet 1978"
+    }
+  },
+  "retention": {
+    "default": 5,
+    "sante": 20,
+    "financier": 10,
+    "administratif": 5,
+    "intelligence": 20
+  },
+  "signature": {
+    "supported_algorithms": ["Ed25519", "eIDAS"],
+    "default_algorithm": "Ed25519",
+    "hash_algorithm": "sha3_256"
+  },
+  "compliance_frameworks": [
+    "RGPD",
+    "CADA",
+    "EU_AI_Act",
+    "eIDAS"
+  ]
+}

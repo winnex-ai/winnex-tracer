@@ -1,0 +1,113 @@
+{
+  "version": "2.0.0",
+  "description": "United States — Federal Government. FOIA 5 U.S.C. §552, HIPAA, FISMA, Federal Records Act.",
+  "mode": {
+    "supported": ["public", "internal"],
+    "default": "public"
+  },
+  "required_fields": [
+    "requesting_agency",
+    "operator_id",
+    "role",
+    "source_database",
+    "sensitivity",
+    "purpose"
+  ],
+  "sensitivity": {
+    "public": {
+      "description": "Public data — FOIA 5 U.S.C. §552",
+      "retention_years": 5,
+      "required_signature": "Ed25519",
+      "legal_basis": "FOIA 5 U.S.C. §552"
+    },
+    "restricted": {
+      "description": "Controlled Unclassified Information (CUI)",
+      "retention_years": 10,
+      "required_signature": "Ed25519",
+      "legal_basis": "32 CFR Part 2002 (CUI)"
+    },
+    "secret": {
+      "description": "Classified data — Executive Order 13526",
+      "retention_years": 20,
+      "required_signature": "Ed25519",
+      "legal_basis": "Executive Order 13526"
+    }
+  },
+  "agencies": {
+    "default": {
+      "retention_years": 5,
+      "minimum_signature": "Ed25519",
+      "require_blockchain": false
+    },
+    "GAO": {
+      "retention_years": 10,
+      "minimum_signature": "Ed25519",
+      "require_blockchain": true,
+      "legal_basis": "Government Accountability Office — 31 U.S.C. §701"
+    },
+    "OIG": {
+      "retention_years": 10,
+      "minimum_signature": "Ed25519",
+      "require_blockchain": true,
+      "legal_basis": "Inspector General Act of 1978"
+    },
+    "HHS": {
+      "retention_years": 20,
+      "minimum_signature": "Ed25519",
+      "require_blockchain": true,
+      "default_source_database": "CMS/Medicare",
+      "legal_basis": "HIPAA 45 CFR §164.312"
+    },
+    "Treasury": {
+      "retention_years": 10,
+      "minimum_signature": "Ed25519",
+      "require_blockchain": true,
+      "default_source_database": "Fiscal Service",
+      "legal_basis": "Federal Records Act — 44 U.S.C."
+    }
+  },
+  "states": {
+    "default": {
+      "name": "State",
+      "retention_years": 5,
+      "minimum_signature": "Ed25519"
+    },
+    "ca": {
+      "name": "California",
+      "agency": "California State Auditor",
+      "retention_years": 10,
+      "minimum_signature": "Ed25519",
+      "legal_basis": "CCPA + State Records Act"
+    },
+    "ny": {
+      "name": "New York",
+      "agency": "Office of the State Comptroller",
+      "retention_years": 10,
+      "minimum_signature": "Ed25519"
+    },
+    "tx": {
+      "name": "Texas",
+      "agency": "Texas State Auditor",
+      "retention_years": 10,
+      "minimum_signature": "Ed25519"
+    }
+  },
+  "retention": {
+    "default": 5,
+    "health": 20,
+    "financial": 10,
+    "administrative": 5,
+    "intelligence": 20
+  },
+  "signature": {
+    "supported_algorithms": ["Ed25519"],
+    "default_algorithm": "Ed25519",
+    "hash_algorithm": "sha3_256"
+  },
+  "compliance_frameworks": [
+    "FOIA",
+    "HIPAA",
+    "FISMA",
+    "Federal_Records_Act"
+  ]
+}

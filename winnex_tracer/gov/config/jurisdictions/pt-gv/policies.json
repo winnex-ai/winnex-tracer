@@ -1,0 +1,79 @@
+{
+  "version": "2.0.0",
+  "description": "Portugal — RGPD (Lei 58/2019), LADA (Lei 26/2016). Herda eu-gv (GDPR, EU AI Act).",
+  "mode": {
+    "supported": ["public", "internal"],
+    "default": "public"
+  },
+  "required_fields": [
+    "orgao_requisitante",
+    "numero_identificacao",
+    "funcao",
+    "base_de_dados",
+    "sensibilidade",
+    "finalidade"
+  ],
+  "sensitivity": {
+    "public": {
+      "description": "Dados publicos — LADA Art. 2",
+      "retention_years": 5,
+      "required_signature": "Cartao de Cidadao",
+      "legal_basis": "Lei 26/2016 (LADA)"
+    },
+    "restricted": {
+      "description": "Dados restritos — RGPD",
+      "retention_years": 10,
+      "required_signature": "Cartao de Cidadao",
+      "legal_basis": "RGPD + Lei 58/2019"
+    },
+    "secret": {
+      "description": "Dados secretos — seguranca nacional",
+      "retention_years": 20,
+      "required_signature": "Cartao de Cidadao",
+      "legal_basis": "Lei de Seguranca Nacional"
+    }
+  },
+  "agencies": {
+    "default": {
+      "retention_years": 5,
+      "minimum_signature": "Cartao de Cidadao",
+      "require_blockchain": false
+    },
+    "Tribunal de Contas": {
+      "retention_years": 10,
+      "minimum_signature": "Cartao de Cidadao",
+      "require_blockchain": true,
+      "legal_basis": "Lei 98/97"
+    },
+    "CNPD": {
+      "retention_years": 10,
+      "minimum_signature": "Cartao de Cidadao",
+      "require_blockchain": true,
+      "legal_basis": "RGPD + Lei 58/2019"
+    },
+    "IGF": {
+      "retention_years": 10,
+      "minimum_signature": "Cartao de Cidadao",
+      "require_blockchain": true,
+      "legal_basis": "Decreto-Lei 166/98"
+    }
+  },
+  "retention": {
+    "default": 5,
+    "saude": 20,
+    "financeiro": 10,
+    "administrativo": 5,
+    "inteligencia": 20
+  },
+  "signature": {
+    "supported_algorithms": ["Ed25519", "Cartao de Cidadao"],
+    "default_algorithm": "Ed25519",
+    "hash_algorithm": "sha3_256"
+  },
+  "compliance_frameworks": [
+    "RGPD",
+    "LADA",
+    "EU_AI_Act",
+    "eIDAS"
+  ]
+}

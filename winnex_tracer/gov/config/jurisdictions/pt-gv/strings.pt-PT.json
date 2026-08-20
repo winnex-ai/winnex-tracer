@@ -1,0 +1,48 @@
+{
+  "report": {
+    "generated_at": "Gerado em",
+    "agency": "Orgao requisitante",
+    "operator": "Operador",
+    "role": "Funcao",
+    "purpose": "Finalidade",
+    "database": "Base de dados",
+    "classification": "Classificacao",
+    "results": "Resultados",
+    "bound_violations": "Violacoes de bound",
+    "exclusions_proved": "Exclusoes comprovadas",
+    "algorithm": "Algoritmo",
+    "signature": "Assinatura",
+    "signature_type": "Tipo de assinatura",
+    "worm_hash": "Hash WORM",
+    "blockchain_tx": "Transacao blockchain",
+    "assessment": "Avaliacao",
+    "disclaimer": "Aviso",
+    "self_assessment": "auto-avaliacao — nao certificado",
+    "mathematical_proof": "Prova matematica",
+    "proved_exclusion": "documento comprovadamente fora do top-K via Cauchy-Schwarz",
+    "survived": "documento passou em todas as verificacoes de bound",
+    "framework": "Enquadramento legal"
+  },
+  "rgpd": {
+    "title": "RELATORIO RGPD — Art. 22",
+    "subtitle": "Decisoes automatizadas incluindo perfis",
+    "regulation": "RGPD",
+    "articles_mapped": ["Art. 22", "Art. 13-15", "Art. 35 (AIPD)"]
+  },
+  "lada": {
+    "title": "RELATORIO LADA — Lei 26/2016",
+    "subtitle": "Lei de Acesso aos Documentos Administrativos",
+    "regulation": "Lei 26/2016",
+    "articles_mapped": ["Art. 2", "Art. 5", "Art. 11"]
+  },
+  "tribunal_contas": {
+    "title": "RELATORIO DO TRIBUNAL DE CONTAS",
+    "subtitle": "Prestacao de contas",
+    "protocol": "Protocolo"
+  },
+  "common": {
+    "yes": "SIM",
+    "no": "NAO",
+    "winnex_credit": "Winnex AI | licensing@winnex.ai | BSL 1.1"
+  }
+}

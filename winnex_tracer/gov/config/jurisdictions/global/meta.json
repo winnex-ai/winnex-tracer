@@ -1,0 +1,8 @@
+{
+  "code": "global",
+  "name": "Global Defaults",
+  "language": "en",
+  "parent": null,
+  "region": null,
+  "description": "Base configuration inherited by all jurisdictions. Country/region policies override these defaults."
+}

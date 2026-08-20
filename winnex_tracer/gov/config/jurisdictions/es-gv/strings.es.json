@@ -1,0 +1,48 @@
+{
+  "report": {
+    "generated_at": "Generado en",
+    "agency": "Organismo solicitante",
+    "operator": "Operador",
+    "role": "Funcion",
+    "purpose": "Finalidad",
+    "database": "Base de datos",
+    "classification": "Clasificacion",
+    "results": "Resultados",
+    "bound_violations": "Violaciones de bound",
+    "exclusions_proved": "Exclusiones comprobadas",
+    "algorithm": "Algoritmo",
+    "signature": "Firma",
+    "signature_type": "Tipo de firma",
+    "worm_hash": "Hash WORM",
+    "blockchain_tx": "Transaccion blockchain",
+    "assessment": "Evaluacion",
+    "disclaimer": "Aviso",
+    "self_assessment": "autoevaluacion — no certificado",
+    "mathematical_proof": "Prueba matematica",
+    "proved_exclusion": "documento comprobadamente fuera del top-K via Cauchy-Schwarz",
+    "survived": "documento supero todas las verificaciones de bound",
+    "framework": "Marco legal"
+  },
+  "rgpd": {
+    "title": "INFORME RGPD — Art. 22",
+    "subtitle": "Decisiones automatizadas incluida la elaboracion de perfiles",
+    "regulation": "RGPD",
+    "articles_mapped": ["Art. 22", "Art. 13-15", "Art. 35 (EIPD)"]
+  },
+  "transparencia": {
+    "title": "INFORME DE TRANSPARENCIA — Ley 19/2013",
+    "subtitle": "Ley de Transparencia, Acceso a la Informacion Publica y Buen Gobierno",
+    "regulation": "Ley 19/2013",
+    "articles_mapped": ["Art. 13", "Art. 14", "Art. 15"]
+  },
+  "tribunal_cuentas": {
+    "title": "INFORME DEL TRIBUNAL DE CUENTAS",
+    "subtitle": "Fiscalizacion",
+    "protocol": "Protocolo"
+  },
+  "common": {
+    "yes": "SI",
+    "no": "NO",
+    "winnex_credit": "Winnex AI | licensing@winnex.ai | BSL 1.1"
+  }
+}
