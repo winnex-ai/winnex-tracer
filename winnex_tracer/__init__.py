@@ -16,4 +16,4 @@ tracer-gov/med/jus/gap packages). Install extras: winnex-tracer[gov], [med],
 
 Business Source License 1.1 (BSL 1.1) | pay@winnex.ai
 """
-__version__ = "1.0.0"
+__version__ = "1.1.0"

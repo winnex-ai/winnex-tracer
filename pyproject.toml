@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "winnex-tracer"
-version = "1.0.0"
+version = "1.1.0"
 description = "The unified Winnex tracer family — shared core (WORM, Ed25519 signing, AuditCommitment) plus the gov/med/jus/gap domains, in one namespaced package."
 readme = "README.md"
 requires-python = ">=3.10"

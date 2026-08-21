@@ -16,10 +16,11 @@ Beyond semantic search, supports **structured metadata filtering**
 
 Licensed under Business Source License 1.1 (BSL 1.1) | contact: licensing@winnex.ai
 """
-import os, json, logging, time, hashlib
+import os, json, logging, time, hashlib, threading
 from typing import Dict, Any, Optional, List, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 
 import numpy as np
 
@@ -27,6 +28,70 @@ from winnex_tracer.med.core.metadata import ClinicalMetadata, ClinicalRecord, ne
 from winnex_tracer.med.core.evidence import EvidenceChain
 
 logger = logging.getLogger("tracer-med.clinical")
+
+
+def _text_hash(text: str) -> str:
+    """Short content-addressed key for an embedding cache entry.
+
+    The hash of the text (not an arbitrary id) means the SAME corpus text is
+    never re-embedded across triages — the Gargalo #3 fix. First 16 hex chars
+    (64 bits) is sufficient for a cache key; collisions only re-embed once.
+    """
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+class EmbeddingCache:
+    """Persistent, content-addressed cache of text → embedding vector.
+
+    Gargalo #3 remediation: the MED engine used to re-embed the WHOLE corpus
+    on every run_triage. This cache persists vectors keyed by the text hash, so
+    subsequent triages over the same corpus load vectors instead of calling the
+    embedding model.
+
+    Backend: a JSON file (``TRACER_MED_EMBEDDING_CACHE``) written atomically.
+    The same interface (``get``/``put``) is what a PostgreSQL JSONB or Redis
+    backend would implement — swap the two methods to persist elsewhere.
+    """
+
+    def __init__(self, path: Optional[str] = None):
+        self.path = path or os.environ.get(
+            "TRACER_MED_EMBEDDING_CACHE",
+            "/var/lib/tracer-med/embedding_cache.json")
+        self._lock = threading.Lock()
+        self._cache: Dict[str, List[float]] = {}
+        self._load()
+
+    def _load(self) -> None:
+        p = Path(self.path)
+        if not p.exists():
+            return
+        try:
+            with open(p) as f:
+                data = json.load(f)
+            self._cache = data.get("vectors", {})
+        except Exception as e:
+            logger.warning("EmbeddingCache: failed to load %s: %s", self.path, e)
+
+    def _save(self) -> None:
+        try:
+            Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+            tmp = f"{self.path}.tmp"
+            with open(tmp, "w") as f:
+                json.dump({"vectors": self._cache}, f)
+            os.replace(tmp, self.path)  # atomic
+        except Exception as e:
+            logger.warning("EmbeddingCache: failed to save %s: %s", self.path, e)
+
+    def get(self, text: str) -> Optional[List[float]]:
+        key = _text_hash(text)
+        with self._lock:
+            return self._cache.get(key)
+
+    def put(self, text: str, vector: List[float]) -> None:
+        key = _text_hash(text)
+        with self._lock:
+            self._cache[key] = [float(x) for x in vector]
+        self._save()
 
 
 @dataclass
@@ -126,23 +191,70 @@ class ClinicalTriageEngine:
     def __init__(self,
                  embedding_model: str = "pritamdeka/S-Bluebert-snli-multinli-stsb",
                  stage1_dim: int = 64, stage2_dim: int = 128,
-                 k: int = 10, evidence=None):
+                 k: int = 10, evidence=None,
+                 embedding_cache: Optional[EmbeddingCache] = None):
         self.embedding_model = embedding_model
         self.stage1_dim = stage1_dim
         self.stage2_dim = stage2_dim
         self.k = k
         self._evidence = evidence or EvidenceChain()
         self._model = None
+        # Content-addressed persistent cache (Gargalo #3). When set, corpus
+        # vectors are loaded from the cache on repeat triages instead of
+        # re-embedding the whole corpus.
+        self._embedding_cache = embedding_cache or EmbeddingCache()
+
+    # ------------------------------------------------------------------
+    # Embedding
+    # ------------------------------------------------------------------
+    def _get_or_create_embeddings(self, texts: List[str]) -> np.ndarray:
+        """Embed a batch, serving repeated texts from the persistent cache.
+
+        Gargalo #3 fix: only texts whose hash is NOT in the cache are passed to
+        the embedding model; their vectors are persisted for future triages.
+        If the cache backend is unavailable the method falls back to embedding
+        everything (no data loss, only the speed benefit is lost).
+        """
+        if self._embedding_cache is None:
+            return self._embed(texts)
+        vectors: List[Optional[List[float]]] = [None] * len(texts)
+        to_embed: List[int] = []
+        for i, t in enumerate(texts):
+            cached = self._embedding_cache.get(t)
+            if cached is not None:
+                vectors[i] = cached
+            else:
+                to_embed.append(i)
+        if to_embed:
+            missing_texts = [texts[i] for i in to_embed]
+            try:
+                new_vectors = self._embed(missing_texts)
+            except Exception:
+                # Cache backend may have failed; embed everything instead.
+                logger.warning(
+                    "Tracer-MED: embedding cache read failed — re-embedding")
+                return self._embed(texts)
+            for j, i in enumerate(to_embed):
+                vec = new_vectors[j].tolist()
+                vectors[i] = vec
+                try:
+                    self._embedding_cache.put(texts[i], vec)
+                except Exception as e:
+                    logger.warning(
+                        "Tracer-MED: embedding cache write failed: %s", e)
+        return np.ascontiguousarray(
+            np.array(vectors, dtype=np.float32), dtype=np.float32)
 
     # ------------------------------------------------------------------
     # Embedding
     # ------------------------------------------------------------------
     def _embed(self, texts: List[str]) -> np.ndarray:
-        """Embed texts with the biomedical model.
+        """Embed texts with a REAL embedding model.
 
-        Falls back to a deterministic hash embedding only if the model is
-        unavailable AND no other sentence-transformers model works
-        (documented demo fallback — never used on real triage).
+        Raises:
+            RuntimeError: if no embedding model is available. There is NO
+                fallback — a triage without a real model must FAIL loudly
+                rather than silently produce meaningless vectors.
         """
         errors = []
         for model_name in (self.embedding_model,
@@ -157,21 +269,12 @@ class ClinicalTriageEngine:
                 return np.ascontiguousarray(vecs, dtype=np.float32)
             except Exception as e:
                 errors.append(f"{model_name}: {str(e)[:50]}")
-        logger.warning("Embedding models unavailable (%s) — hash fallback.",
-                       "; ".join(errors))
-        return self._hash_embed(texts)
-
-    @staticmethod
-    def _hash_embed(texts: List[str], dim: int = 384) -> np.ndarray:
-        """Deterministic hash-based embedding fallback (demo only)."""
-        out = np.zeros((len(texts), dim), dtype=np.float32)
-        for i, t in enumerate(texts):
-            h = hashlib.sha3_256(t.encode()).digest()
-            rng = np.random.RandomState(int.from_bytes(h[:8], "big"))
-            out[i] = rng.randn(dim).astype(np.float32)
-        norms = np.linalg.norm(out, axis=1, keepdims=True)
-        out /= (norms + 1e-9)
-        return np.ascontiguousarray(out, dtype=np.float32)
+        raise RuntimeError(
+            "ClinicalTriageEngine: no real embedding model available. "
+            f"Tried {'; '.join(errors)}. Install a sentence-transformers "
+            "model (e.g. pip install sentence-transformers) or provide "
+            "pre-computed embeddings. Refusing to fall back to a hash "
+            "embedding — a triage without a real model is meaningless.")
 
     # ------------------------------------------------------------------
     # Triage run
@@ -218,8 +321,10 @@ class ClinicalTriageEngine:
         metas = [r.metadata for r in kept]
 
         # 2. Embed
-        X = self._embed(texts)
-        Q = self._embed(clinical_queries)
+        # Gargalo #3: corpus vectors come from the persistent content-addressed
+        # cache; only unseen texts are embedded. Queries are embedded fresh.
+        X = self._get_or_create_embeddings(texts)
+        Q = self._get_or_create_embeddings(clinical_queries)
 
         # 3. Build Madhava engine (real, with bound proof)
         try:
@@ -229,12 +334,22 @@ class ClinicalTriageEngine:
                 dim=X.shape[1], metric="cosine", quant="int8",
                 stage1_dim=min(self.stage1_dim, X.shape[1]),
                 stage2_dim=min(self.stage2_dim, X.shape[1]),
-                k=k, k1_fraction=0.05, modulation=True, postfilter=True,
+                k=k, k1_fraction=0.05,
+                # Bounded Stage-2 survivors (Gargalo #2): postfilter=True scores
+                # every survivor exactly; cap k2 to bound query cost.
+                # Configurable via env (TRACER_MED_K2_MAX).
+                k2_fraction=float(
+                    os.environ.get("TRACER_MED_K2_FRACTION", "0.005")),
+                k2_max=int(os.environ.get("TRACER_MED_K2_MAX", "500")),
+                modulation=True, postfilter=True,
             )
             engine_used = "winnex-madhava (pip, C++20) + BlueBERT"
         except ImportError:
-            engine = None
-            engine_used = "numpy fallback (no winnex-madhava) — DEMO"
+            raise RuntimeError(
+                "ClinicalTriageEngine: winnex-madhava is required for "
+                "soundness-guaranteed triage. Install it "
+                "(pip install winnex-madhava). Refusing to fall back to a "
+                "numpy scan — the proof guarantee requires the real motor.")
 
         # 4. Audited search per query
         total_viol = 0
@@ -244,13 +359,75 @@ class ClinicalTriageEngine:
         if engine is not None:
             for i, q in enumerate(clinical_queries):
                 qv = np.ascontiguousarray(Q[i], dtype=np.float32)
-                r = engine.search(qv)
-                total_viol += r.bound_violations
-                total_pairs += r.bound_pairs
+
+                # Audited search with Ed25519 non-repudiation, aligned with
+                # Tracer-GOV. With winnex-madhava >= 1.9.2 the motor returns a
+                # lightweight AuditCommitment (count + global threshold +
+                # boundary sample) via search_with_commitment; winnex_tracer's
+                # compliance layer signs it (make_worm_record) and the ~500-byte
+                # signed record is appended to the WORM evidence chain. Fallback:
+                # < 1.9.2 → search_audited certificate; else plain search.
+                commitment = None
+                worm_receipt = {}
+                from winnex_tracer.persistence import WormStorage
+
+                if hasattr(engine, "search_with_commitment"):
+                    # Ed25519 non-repudiation (aligned with Tracer-GOV). The
+                    # signer is FAIL-CLOSED without WORM_SIGNING_PRIVATE_KEY_*:
+                    # in that case we degrade to the certificate/EvidenceChain
+                    # path instead of failing the clinical triage (the MED
+                    # service may run without a signing key; the GOV service
+                    # requires one).
+                    try:
+                        from winnex_tracer.core import make_worm_record
+                        rec = make_worm_record(
+                            engine, qv, k=int(k), max_sample=50,
+                            query_vector_bytes=qv.tobytes())
+                        commitment = rec
+                        total_viol += int(rec["bound_violations"])
+                        total_pairs += int(rec["bound_pairs"])
+                        indices = list(rec["indices"])
+                        latency_ms = float(rec.get("_latency_ms", 0.0))
+                        try:
+                            worm_path = os.environ.get(
+                                "TRACER_MED_EVIDENCE_PATH",
+                                "/var/lib/tracer-med/evidence")
+                            worm_receipt = WormStorage(
+                                base_path=worm_path).append(
+                                {"commitment": rec, "_ctx": {"query": q}})
+                        except Exception as e:
+                            logger.warning(
+                                "Tracer-MED: WORM evidence persist failed: %s", e)
+                    except Exception as e:
+                        logger.warning(
+                            "Tracer-MED: signed commitment unavailable "
+                            "(WORM_SIGNING_PRIVATE_KEY_* not set?) — "
+                            "degrading to search_audited certificate: %s", e)
+                        commitment = None
+                        ar = engine.search_audited(
+                            qv, k=int(k), max_audit_records=500)
+                        total_viol += int(ar["bound_violations"])
+                        total_pairs += int(ar["bound_pairs"])
+                        indices = list(ar["indices"])
+                        latency_ms = float(ar["latency_ms"])
+                elif hasattr(engine, "search_audited"):
+                    ar = engine.search_audited(
+                        qv, k=int(k), max_audit_records=500)
+                    total_viol += int(ar["bound_violations"])
+                    total_pairs += int(ar["bound_pairs"])
+                    indices = list(ar["indices"])
+                    latency_ms = float(ar["latency_ms"])
+                else:
+                    r = engine.search(qv)
+                    total_viol += r.bound_violations
+                    total_pairs += r.bound_pairs
+                    indices = list(r.indices)
+                    latency_ms = float(r.latency_ms)
+
                 # Post-filter: attach metadata to returned indices
                 returned = []
-                for idx in r.indices:
-                    rec = kept[idx]
+                for idx in indices:
+                    rec = kept[int(idx)]
                     returned.append({
                         "index": int(idx),
                         "external_id": rec.external_id,
@@ -259,11 +436,13 @@ class ClinicalTriageEngine:
                     })
                 per_query.append({
                     "query": q,
-                    "indices": list(r.indices),
+                    "indices": indices,
                     "returned": returned,
-                    "bound_violations": r.bound_violations,
-                    "bound_pairs": r.bound_pairs,
-                    "latency_ms": round(r.latency_ms, 3),
+                    "bound_violations": int(commitment["bound_violations"]) if commitment else 0,
+                    "bound_pairs": int(commitment["bound_pairs"]) if commitment else total_pairs,
+                    "latency_ms": round(latency_ms, 3),
+                    "commitment": commitment,
+                    "worm_receipt": worm_receipt,
                 })
         else:
             for i, q in enumerate(clinical_queries):

@@ -558,6 +558,13 @@ class TracerEngine:
                 stage2_dim=min(self.config.stage2_dim, dim),
                 k=self.config.final_k,
                 k1_fraction=0.05,
+                # Bounded Stage-2 survivors (Gargalo #2): postfilter=True scores
+                # every survivor exactly, so cap k2 to keep query cost bounded
+                # on large corpora. Configurable via env for tuning without
+                # rebuild (e.g. TRACER_K2_MAX=2000 on strong hardware).
+                k2_fraction=float(
+                    os.environ.get("TRACER_K2_FRACTION", "0.005")),
+                k2_max=int(os.environ.get("TRACER_K2_MAX", "500")),
                 modulation=True,
                 postfilter=True,
                 seed=self.config.random_seed,
