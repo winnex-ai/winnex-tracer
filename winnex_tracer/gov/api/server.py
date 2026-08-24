@@ -551,24 +551,54 @@ def _resolve_worm_path(audit_id: str) -> str:
     block data (see the persistence layer). The WORM store is addressed
     by block_hash, so we scan for the block whose data.audit_id matches.
     Returns the block (record) or raises 404.
+
+    The audit may live in ANY jurisdiction/mode engine's WORM (each engine
+    has its own worm_base_path). We scan ALL registered engines — not only
+    the default global:public — so compliance endpoints resolve records for
+    searches performed under e.g. br-gv or eu-gv:internal (fixes the 404
+    regression when the search jurisdiction != the engine default).
     """
     from winnex_tracer.persistence import WormStorage
-    worm = WormStorage(base_path=get_engine().config.worm_base_path)
-    if not worm.base_path.exists():
-        raise HTTPException(404, f"Audit {audit_id} not found (no WORM data)")
-    for f in sorted(worm.base_path.rglob("records.jsonl")):
-        with open(f) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    block = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                data = block.get("data", {})
-                if data.get("audit_id") == audit_id:
-                    return block
+    # Deduplicate by worm_base_path (multiple engines may share a store).
+    seen_paths = set()
+    engines = list(_engines.values())
+    # Always try the default engine first (deterministic for global:public).
+    engines.append(get_engine())
+
+    def _scan(base_path) -> dict:
+        worm = WormStorage(base_path=base_path)
+        if not worm.base_path.exists():
+            return None
+        for f in sorted(worm.base_path.rglob("records.jsonl")):
+            with open(f) as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        block = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    data = block.get("data", {})
+                    # Legacy path: data.audit_id (the government metadata audit_id).
+                    if data.get("audit_id") == audit_id:
+                        return block
+                    # Production path: the signed commitment carries audit_id
+                    # inside data.commitment (the ~500B WORM record).
+                    comm = data.get("commitment")
+                    if isinstance(comm, dict) and comm.get("audit_id") == audit_id:
+                        return block
+        return None
+
+    for engine in engines:
+        base = engine.config.worm_base_path
+        key = str(base)
+        if key in seen_paths:
+            continue
+        seen_paths.add(key)
+        block = _scan(base)
+        if block is not None:
+            return block
     raise HTTPException(404, f"Audit {audit_id} not found in WORM storage")
 
 

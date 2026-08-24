@@ -127,22 +127,11 @@ class DiscoveryEngine:
                 texts, normalize_embeddings=True, show_progress_bar=False)
             return np.ascontiguousarray(vecs, dtype=np.float32)
         except (ImportError, OSError) as e:
-            logger.warning("Embedding model unavailable (%s) — using "
-                           "deterministic hash fallback (demo only).", e)
-            return self._hash_embed(texts)
-
-    @staticmethod
-    def _hash_embed(texts: List[str], dim: int = 384) -> np.ndarray:
-        """Deterministic hash-based embedding fallback (demo)."""
-        out = np.zeros((len(texts), dim), dtype=np.float32)
-        for i, t in enumerate(texts):
-            h = hashlib.sha3_256(t.encode()).digest()
-            # Expand hash deterministically into a vector
-            rng = np.random.RandomState(int.from_bytes(h[:8], "big"))
-            out[i] = rng.randn(dim).astype(np.float32)
-        norms = np.linalg.norm(out, axis=1, keepdims=True)
-        out /= (norms + 1e-9)
-        return np.ascontiguousarray(out, dtype=np.float32)
+            raise RuntimeError(
+                "DiscoveryEngine: no real embedding model available. "
+                f"({e}) Install sentence-transformers with an embedding "
+                "model. Refusing to fall back to a hash embedding — "
+                "e-Discovery without a real model is meaningless.")
 
     # ------------------------------------------------------------------
     # Discovery run
@@ -196,9 +185,11 @@ class DiscoveryEngine:
             )
             engine_used = "winnex-madhava (pip, C++20)"
         except ImportError:
-            engine = None
-            engine_used = "numpy fallback (no winnex-madhava installed)"
-            logger.warning("winnex-madhava not installed — demo fallback.")
+            raise RuntimeError(
+                "DiscoveryEngine: winnex-madhava is required for "
+                "soundness-guaranteed e-Discovery. Install it "
+                "(pip install winnex-madhava). Refusing to fall back to a "
+                "numpy scan — the proof guarantee requires the real motor.")
 
         # 3. Audited search per review query
         total_viol = 0

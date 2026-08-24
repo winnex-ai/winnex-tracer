@@ -691,11 +691,17 @@ class TracerEngine:
 
             if hasattr(self._engine, "search_with_commitment"):
                 # 1.9.2+ : signed commitment (the production audit trail).
+                # The commitment MUST share the SAME audit_id as the
+                # government metadata (the one the API returns), so WORM
+                # lookups by audit_id resolve the record. The metadata
+                # audit_id is the single source of truth — no internal
+                # uuid drift between metadata and commitment.
                 from winnex_tracer.core import make_worm_record
                 rec = make_worm_record(
                     self._engine, qc, k=k_eff,
                     max_sample=min(int(self.config.max_audit_records_per_query), 200),
-                    query_vector_bytes=qc.tobytes())
+                    query_vector_bytes=qc.tobytes(),
+                    audit_id=metadata.audit_id)
                 result.indices = list(rec["indices"])
                 result.bound_pairs = int(rec["bound_pairs"])
                 result.bound_violations = int(rec["bound_violations"])

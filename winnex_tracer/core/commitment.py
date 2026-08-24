@@ -87,6 +87,7 @@ def commitment_to_payload(
     commitment: Dict[str, Any],
     query_vector_bytes: bytes,
     k_requested: int,
+    audit_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build the deterministic payload to be signed, from the C++ commitment.
 
@@ -94,6 +95,9 @@ def commitment_to_payload(
         commitment: the dict from engine.search_with_commitment(...)
         query_vector_bytes: raw float32 query bytes (for the fingerprint)
         k_requested: the k passed to the search
+        audit_id: optional explicit audit_id. When omitted, a new uuid is
+            generated. Callers (tracer-gov/med) pass the government metadata
+            audit_id so the commitment and the metadata share ONE id.
     Returns:
         payload dict (unsorted canonical keys are fine — we sort_keys in
         hashlib/sign).
@@ -107,7 +111,7 @@ def commitment_to_payload(
         for s in commitment.get("sampled_records", [])
     ]
     return {
-        "audit_id": str(uuid.uuid4()),
+        "audit_id": audit_id or str(uuid.uuid4()),
         "timestamp": time.time(),
         "query_fingerprint": hashlib.sha256(query_vector_bytes).hexdigest(),
         "k_requested": int(k_requested),
@@ -201,6 +205,7 @@ def make_worm_record(
     k: int = 10,
     max_sample: int = 50,
     query_vector_bytes: Optional[bytes] = None,
+    audit_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Full pipeline: motor commitment → signed WORM record (~500 bytes).
 
@@ -209,6 +214,11 @@ def make_worm_record(
         query_vec: the float32 query vector (np.ndarray)
         k: top-k requested
         max_sample: boundary sample size (default 50)
+        audit_id: optional explicit audit_id. Callers (tracer-gov/med) pass
+            the government metadata audit_id so the commitment and the
+            metadata share ONE id (the API returns the metadata id and WORM
+            lookups by that id must resolve the record). When omitted, a new
+            uuid is generated inside commitment_to_payload.
     Returns:
         signed WORM record (ready for WormStorage.append)
     """
@@ -221,7 +231,8 @@ def make_worm_record(
         raise RuntimeError(
             "engine has no search_with_commitment — need winnex-madhava >= 1.9.2"
         )
-    payload = commitment_to_payload(commitment, query_vector_bytes, k)
+    payload = commitment_to_payload(
+        commitment, query_vector_bytes, k, audit_id=audit_id)
     record = sign_payload(payload)
     # Attach latency from the motor (informational, not signed).
     record["_latency_ms"] = float(commitment.get("latency_ms", 0.0))

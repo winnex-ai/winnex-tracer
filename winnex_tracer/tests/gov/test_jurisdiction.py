@@ -6,6 +6,7 @@ Licensed under Business Source License 1.1 (BSL 1.1) | contact: licensing@winnex
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
+import pytest
 from winnex_tracer.gov.core.jurisdiction import (
     reload_jurisdictions,
     get_jurisdiction,
@@ -14,6 +15,12 @@ from winnex_tracer.gov.core.jurisdiction import (
 from winnex_tracer.gov.compliance.localized import generate_localized_report
 from winnex_tracer.gov.core import TracerEngine, Config, GovMetadata
 import numpy as np
+
+
+@pytest.fixture(autouse=True)
+def _ed25519_key(monkeypatch):
+    """The commitment requires a signing key — provide a fixed test key."""
+    monkeypatch.setenv("WORM_SIGNING_PRIVATE_KEY_HEX", "00" * 32)
 
 
 def test_list_jurisdictions():

@@ -23,6 +23,7 @@ def client(monkeypatch):
     monkeypatch.setenv("WINNEX_TRACER_WORM_PATH", tmp)
     monkeypatch.setenv("WINNEX_TRACER_AUDIT_LOG_PATH", tmp)
     monkeypatch.setenv("WINNEX_TRACER_INTERNAL_CREDENTIAL", "server-secret")
+    monkeypatch.setenv("WORM_SIGNING_PRIVATE_KEY_HEX", "00" * 32)
     # Fresh engine cache per test
     from winnex_tracer.gov.api import server
     server.reset_engines()
