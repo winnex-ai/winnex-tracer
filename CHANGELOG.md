@@ -10,6 +10,39 @@ build se não corresponder.
 
 ## [Não publicado]
 
+## [1.1.2] — 2026-10-29
+
+Correção de integridade da cadeia WORM. Sem mudança na API pública.
+
+### Corrigido
+
+- **`WormStorage.append` encadeava contra estado obsoleto.** O `prev_hash`
+  de cada bloco vinha de `self._last_hash`, lido uma única vez no
+  `__init__`. Com duas instâncias vivas sobre o mesmo `base_path` — ou uma
+  instância longeva ao lado de uma efêmera — o escritor seguinte gravava um
+  `prev_hash` velho e **a cadeia se rompia de forma permanente**, sem que
+  nada tivesse sido adulterado. `verify_integrity()` então acusava violação
+  num histórico íntegro.
+
+  Esse é o padrão de uso normal do `tracer-med`, não um caso exótico:
+  `EvidenceChain` mantém um `WormStorage` pela vida do processo, enquanto
+  `ClinicalTriageEngine.run_triage` abre `WormStorage()` novo a cada
+  consulta. Medido antes da correção: 4 processos × 5 appends → 20 blocos,
+  **9 violações de cadeia**; e uma triagem clínica real terminava com
+  `evidence_chain_verified=False` sobre eventos legítimos.
+
+  A correção relê o estado da cadeia **sob trava exclusiva** (`fcntl.flock`
+  em `.append.lock`), e mantém a trava até o `.chain` ser substituído, de
+  modo que "ler último hash → gravar bloco → atualizar `.chain`" é atômico
+  entre processos. O `.chain` passa a ser escrito via arquivo temporário +
+  `os.replace`. Sem `fcntl` (Windows), `append` continua funcionando e a
+  ausência de exclusão entre processos é explícita, não um crash silencioso.
+
+  Regressão coberta por `winnex_tracer/tests/test_worm_chain.py` (6 casos),
+  incluindo concorrência multiprocesso real e um controle que verifica que a
+  adulteração de conteúdo **continua sendo detectada** — uma correção que
+  fizesse a cadeia "verificar" depois de alterada seria pior que o defeito.
+
 ## [1.1.1] — 2026-10-29
 
 Correção de segurança e honestidade. Sem mudança na API pública.

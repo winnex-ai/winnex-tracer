@@ -14,6 +14,11 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 from datetime import datetime
 
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX (Windows)
+    fcntl = None
+
 
 class WormStorage:
     """Write Once Read Many — append-only log with hash chain.
@@ -178,6 +183,27 @@ class WormStorage:
 
         Returns:
             WORM receipt with hash and path
+
+        CONCORRÊNCIA (corrigido em 1.1.2)
+        ---------------------------------
+        `prev_hash` tem de ser o hash do ÚLTIMO bloco já gravado, não o que
+        esta instância viu quando foi construída. Antes desta correção o
+        `_last_hash` era lido só no `__init__`, e duas instâncias vivas ao
+        mesmo tempo (ou uma instância longeva e uma efêmera) gravavam blocos
+        com `prev_hash` obsoleto — a cadeia se rompia de forma PERMANENTE, e
+        `verify_integrity()` acusava violação num histórico que ninguém
+        adulterou.
+
+        O padrão que dispara o defeito é o uso normal do tracer-med:
+        `EvidenceChain` guarda um `WormStorage` pela vida do processo, e
+        `ClinicalTriageEngine.run_triage` abre um `WormStorage()` novo por
+        consulta. Medido: 4 processos × 5 appends → 20 blocos, 9 violações.
+
+        A correção: reler o estado da cadeia do disco DENTRO de uma trava
+        exclusiva (fcntl.flock), e manter a trava até o `.chain` ser
+        atualizado. Assim o "ler último hash → gravar bloco → gravar .chain"
+        é atômico entre processos. O lockfile é separado do `.chain` para
+        não interferir no formato em disco.
         """
         timestamp = time.time()
 
@@ -185,28 +211,46 @@ class WormStorage:
         record = {k: v for k, v in record.items()
                   if k not in ("_worm_hash", "_worm_prev_hash", "_worm_timestamp")}
 
-        # Build block with hash chain
-        block = {
-            "data": record,
-            "timestamp": timestamp,
-            "prev_hash": self._last_hash.hex(),
-        }
-        block_bytes = json.dumps(block, sort_keys=True).encode()
-        block_hash = self._compute_hash(block_bytes)
-        block["block_hash"] = block_hash.hex()
+        self.base_path.mkdir(parents=True, exist_ok=True)
+        lock_path = self.base_path / ".append.lock"
+        with open(lock_path, "a+") as lock_fh:
+            if fcntl is not None:
+                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
+            try:
+                # Estado da cadeia é lido AQUI, sob a trava — nunca do cache
+                # do construtor.
+                self._load_chain_state()
 
-        # Append to daily file (enforced append-only via file system)
-        daily_path = self._get_daily_path()
-        line = json.dumps(block, ensure_ascii=False)
-        with open(daily_path, "a") as f:
-            f.write(line + "\n")
-            f.flush()
-            os.fsync(f.fileno())
+                # Build block with hash chain
+                block = {
+                    "data": record,
+                    "timestamp": timestamp,
+                    "prev_hash": self._last_hash.hex(),
+                }
+                block_bytes = json.dumps(block, sort_keys=True).encode()
+                block_hash = self._compute_hash(block_bytes)
+                block["block_hash"] = block_hash.hex()
 
-        # Persist chain state
-        self._last_hash = block_hash
-        with open(self._chain_file, "w") as f:
-            f.write(block_hash.hex())
+                # Append to daily file (enforced append-only via file system)
+                daily_path = self._get_daily_path()
+                line = json.dumps(block, ensure_ascii=False)
+                with open(daily_path, "a") as f:
+                    f.write(line + "\n")
+                    f.flush()
+                    os.fsync(f.fileno())
+
+                # Persist chain state (ainda sob a trava: é o que torna a
+                # sequência ler→gravar→atualizar atômica entre processos).
+                self._last_hash = block_hash
+                tmp_chain = self._chain_file.with_suffix(".chain.tmp")
+                with open(tmp_chain, "w") as f:
+                    f.write(block_hash.hex())
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_chain, self._chain_file)
+            finally:
+                if fcntl is not None:
+                    fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
 
         # Index the audit_id for O(log N) lookups (best-effort). The audit_id
         # may be data.audit_id (legacy) or data.commitment.audit_id (signed

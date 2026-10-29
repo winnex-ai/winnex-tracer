@@ -26,4 +26,4 @@ Business Source License 1.1 (BSL 1.1) | pay@winnex.ai
 # silêncio; e deixou de usar chave default. Isso é correção de segurança, não
 # funcionalidade nova — e a API pública não mudou. Pela semver, correção que
 # restaura o comportamento correto é patch.
-__version__ = "1.1.1"
+__version__ = "1.1.2"
