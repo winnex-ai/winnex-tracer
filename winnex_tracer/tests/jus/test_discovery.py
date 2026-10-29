@@ -9,6 +9,7 @@ import os, sys, tempfile
 # Tracer-GOV provides persistence/compliance). Do NOT insert paths here —
 # it would override the conftest order and break `core.discovery`.
 
+from winnex_tracer.tests.conftest import requires_engine
 from winnex_tracer.jus.core.discovery import DiscoveryEngine, DiscoveryResult, ExclusionProof
 from winnex_tracer.jus.core.metadata import CaseMetadata
 from winnex_tracer.jus.core.evidence import EvidenceChain
@@ -25,6 +26,7 @@ SAMPLE_CORPUS = [
 ]
 
 
+@requires_engine
 def test_discovery_soundness():
     """e-Discovery with the real Madhava engine is SOUND (0 violations)."""
     eng = DiscoveryEngine()
@@ -38,6 +40,7 @@ def test_discovery_soundness():
     assert result.total_bound_pairs > 0
 
 
+@requires_engine
 def test_discovery_case_metadata():
     """Case metadata flows into the result and evidence."""
     eng = DiscoveryEngine()
@@ -49,6 +52,7 @@ def test_discovery_case_metadata():
     assert result.case["court"] == "1a Vara Civel"
 
 
+@requires_engine
 def test_discovery_evidence_chain():
     """Discovery writes to the evidence chain (WORM) and it verifies."""
     tmp = tempfile.mkdtemp()
@@ -77,6 +81,7 @@ def test_discovery_requires_nonempty():
         pass
 
 
+@requires_engine
 def test_proof_report():
     """The proof report documents soundness and evidence."""
     eng = DiscoveryEngine()

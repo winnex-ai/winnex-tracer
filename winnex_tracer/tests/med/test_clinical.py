@@ -8,6 +8,7 @@ Licensed under Business Source License 1.1 (BSL 1.1) | contact: licensing@winnex
 """
 import os, sys, tempfile
 
+from winnex_tracer.tests.conftest import requires_engine
 from winnex_tracer.med.core.clinical import ClinicalTriageEngine, MetadataFilter
 from winnex_tracer.med.core.metadata import ClinicalMetadata, ClinicalRecord
 from winnex_tracer.med.core.evidence import EvidenceChain
@@ -48,6 +49,7 @@ SAMPLE = [
 ]
 
 
+@requires_engine
 def test_triage_soundness():
     eng = ClinicalTriageEngine()
     result = eng.run_triage(SAMPLE, ["hypertension management"], k=2)
@@ -55,6 +57,7 @@ def test_triage_soundness():
     assert result.engine_used.startswith("winnex-madhava")
 
 
+@requires_engine
 def test_triage_metadata_filter_cid10():
     """Metadata filter restricts to records with the CID-10 code."""
     eng = ClinicalTriageEngine()
@@ -65,6 +68,7 @@ def test_triage_metadata_filter_cid10():
     assert result.per_query[0]["returned"][0]["metadata"]["cid10"] == "I10"
 
 
+@requires_engine
 def test_triage_metadata_filter_document_type():
     """Document type filter (laudo) restricts the corpus."""
     eng = ClinicalTriageEngine()
@@ -74,6 +78,7 @@ def test_triage_metadata_filter_document_type():
     assert result.per_query[0]["returned"][0]["metadata"]["document_type"] == "laudo"
 
 
+@requires_engine
 def test_triage_metadata_filter_department():
     eng = ClinicalTriageEngine()
     filt = MetadataFilter(department="Cardiology")
@@ -81,6 +86,7 @@ def test_triage_metadata_filter_department():
     assert result.corpus_size == 2  # two Cardiology records
 
 
+@requires_engine
 def test_triage_evidence_chain():
     tmp = tempfile.mkdtemp()
     evidence = EvidenceChain(evidence_base_path=tmp)

@@ -7,6 +7,7 @@ import os, sys, tempfile
 
 # Path setup is handled by tests/conftest.py. Do NOT insert paths here.
 
+from winnex_tracer.tests.conftest import requires_engine
 import pytest
 from fastapi.testclient import TestClient
 
@@ -52,6 +53,7 @@ def test_readiness(client):
     assert r.json()["status"] == "ready"
 
 
+@requires_engine
 def test_discovery_run(client):
     r = client.post("/v1/discovery/run", json=PAYLOAD)
     assert r.status_code == 200, r.text
@@ -61,6 +63,7 @@ def test_discovery_run(client):
     assert body["audit_id"] != ""
 
 
+@requires_engine
 def test_discovery_proof(client):
     r = client.post("/v1/discovery/run", json=PAYLOAD)
     aid = r.json()["audit_id"]
@@ -69,6 +72,7 @@ def test_discovery_proof(client):
     assert r.json()["soundness"]["sound"] is True
 
 
+@requires_engine
 def test_discovery_report(client):
     r = client.post("/v1/discovery/run", json=PAYLOAD)
     aid = r.json()["audit_id"]
@@ -77,6 +81,7 @@ def test_discovery_report(client):
     assert r.json()["report_type"] == "TRACER_JUS_LEGAL_COMPLIANCE"
 
 
+@requires_engine
 def test_discovery_evidence(client):
     r = client.post("/v1/discovery/run", json=PAYLOAD)
     aid = r.json()["audit_id"]

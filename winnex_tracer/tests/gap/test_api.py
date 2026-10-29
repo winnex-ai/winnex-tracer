@@ -5,6 +5,7 @@ Licensed under Business Source License 1.1 (BSL 1.1) | contact: licensing@winnex
 """
 import os, sys, tempfile
 
+from winnex_tracer.tests.conftest import requires_engine
 import pytest
 from fastapi.testclient import TestClient
 
@@ -46,6 +47,7 @@ def test_health(client):
     assert r.headers.get("x-content-type-options") == "nosniff"
 
 
+@requires_engine
 def test_gaps_run(client):
     r = client.post("/v1/gaps/run", json=PAYLOAD)
     assert r.status_code == 200, r.text
@@ -54,6 +56,7 @@ def test_gaps_run(client):
     assert body["audit_id"] != ""
 
 
+@requires_engine
 def test_gaps_proof(client):
     r = client.post("/v1/gaps/run", json=PAYLOAD)
     aid = r.json()["audit_id"]
@@ -62,6 +65,7 @@ def test_gaps_proof(client):
     assert r.json()["soundness"]["sound"] is True
 
 
+@requires_engine
 def test_gaps_report(client):
     r = client.post("/v1/gaps/run", json=PAYLOAD)
     aid = r.json()["audit_id"]
@@ -73,6 +77,7 @@ def test_gaps_report(client):
     assert "SEC" in body["regulatory_mapping"]
 
 
+@requires_engine
 def test_gaps_evidence(client):
     r = client.post("/v1/gaps/run", json=PAYLOAD)
     aid = r.json()["audit_id"]

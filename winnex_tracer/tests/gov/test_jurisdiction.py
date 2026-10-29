@@ -6,6 +6,7 @@ Licensed under Business Source License 1.1 (BSL 1.1) | contact: licensing@winnex
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
+from winnex_tracer.tests.conftest import requires_engine
 import pytest
 from winnex_tracer.gov.core.jurisdiction import (
     reload_jurisdictions,
@@ -109,6 +110,7 @@ def test_engine_mode_public_internal():
     assert eng2.config.mode == "internal"
 
 
+@requires_engine
 def test_search_stamps_jurisdiction():
     """search_with_audit stamps jurisdiction/mode/language on result."""
     cfg = Config(jurisdiction="pt-gv", mode="public")

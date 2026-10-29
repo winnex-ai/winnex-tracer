@@ -12,6 +12,7 @@ import os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 import numpy as np
+from winnex_tracer.tests.conftest import requires_engine
 import pytest
 from fastapi.testclient import TestClient
 
@@ -71,6 +72,7 @@ def test_internal_mode_wrong_credential_401(client):
     assert r.status_code == 401, r.text
 
 
+@requires_engine
 def test_internal_mode_correct_credential_ok(client):
     """GAP 1: internal mode with the CORRECT credential succeeds."""
     r = _build_and_search(client, mode="internal", credential="server-secret")
@@ -91,6 +93,7 @@ def test_internal_mode_missing_server_config_503(client, monkeypatch):
     assert r.status_code == 503, r.text
 
 
+@requires_engine
 def test_compliance_endpoint_reads_real_record(client):
     """GAP 2: compliance endpoints use the REAL WORM record."""
     rng = np.random.RandomState(42)

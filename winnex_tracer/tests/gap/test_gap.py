@@ -8,6 +8,7 @@ Licensed under Business Source License 1.1 (BSL 1.1) | contact: licensing@winnex
 """
 import os, sys, tempfile
 
+from winnex_tracer.tests.conftest import requires_engine
 from winnex_tracer.gap.core.gap_analysis import GapAnalysisEngine, MetadataFilter
 from winnex_tracer.gap.core.metadata import FinancialMetadata, FinancialRecord
 from winnex_tracer.gap.core.evidence import EvidenceChain
@@ -48,6 +49,7 @@ SAMPLE = [
 ]
 
 
+@requires_engine
 def test_gap_analysis_soundness():
     eng = GapAnalysisEngine()
     result = eng.run_gap_analysis(SAMPLE, ["unhedged interest rate exposure"], k=2)
@@ -55,6 +57,7 @@ def test_gap_analysis_soundness():
     assert result.engine_used.startswith("winnex-madhava")
 
 
+@requires_engine
 def test_gap_metadata_filter_sector():
     """Filter by sector restricts the corpus."""
     eng = GapAnalysisEngine()
@@ -65,6 +68,7 @@ def test_gap_metadata_filter_sector():
         assert r["sector"] == "Finance"
 
 
+@requires_engine
 def test_gap_metadata_filter_period():
     eng = GapAnalysisEngine()
     filt = MetadataFilter(period="FY2021")
@@ -72,6 +76,7 @@ def test_gap_metadata_filter_period():
     assert result.corpus_size == 2
 
 
+@requires_engine
 def test_gap_metadata_filter_risk_category():
     eng = GapAnalysisEngine()
     filt = MetadataFilter(risk_category="cyber")
@@ -80,6 +85,7 @@ def test_gap_metadata_filter_risk_category():
     assert result.per_query[0]["returned"][0]["sector"] == "Insurance"
 
 
+@requires_engine
 def test_gap_evidence_chain():
     tmp = tempfile.mkdtemp()
     evidence = EvidenceChain(evidence_base_path=tmp)
