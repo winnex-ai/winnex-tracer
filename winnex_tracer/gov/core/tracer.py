@@ -56,6 +56,15 @@ except ImportError:
             logger.info("Tracer-GOV: no Winnex engine found, using built-in fallback")
 
 
+class BackendGuaranteeError(RuntimeError):
+    """Nenhum backend disponivel tem as garantias que o Tracer promete.
+
+    Levantada em vez de cair silenciosamente para um backend numpy sem
+    limite de Cauchy-Schwarz nem commitment. Ver
+    `TracerEngine._resolve_backend`.
+    """
+
+
 @dataclass
 class Config:
     """Tracer-GOV configuration — no hardcoded values.
@@ -73,8 +82,19 @@ class Config:
     stage2_topk: int = 500
     random_seed: int = 42
 
-    # Which engine to prefer: "cpp", "python", "auto"
+    # Which engine to prefer: "cpp", "python", "madhava_pip", "builtin", "auto"
     engine_preference: str = "auto"
+
+    # Exigir que o backend tenha as garantias do Tracer (Cauchy-Schwarz +
+    # search_with_commitment). Com True (default), `auto` LEVANTA
+    # BackendGuaranteeError se nenhum backend com garantias estiver
+    # disponivel, em vez de cair para o numpy "builtin" — que produziria
+    # registros assinados e vazios aparentando validade.
+    #
+    # Desligue apenas se voce quer deliberadamente busca SEM certificado, e
+    # nesse caso o resultado carrega `engine_guarantees` marcando a degradacao
+    # de forma auditavel.
+    require_guarantees: bool = True
 
     # Persistence — dual-write
     pg_connection_string: str = ""
@@ -253,6 +273,13 @@ class GovAuditResult:
 
     # Which engine was used
     engine_used: str = "none"
+
+    # Garantias efetivamente disponiveis nesta consulta. Quando
+    # `engine_guarantees` esta vazio, o backend nao produziu certificado e o
+    # resultado NAO deve ser tratado como auditavel — a degradacao fica
+    # visivel no proprio registro em vez de escondida atras do nome do
+    # backend. Populado em `search_with_audit`.
+    engine_guarantees: List[str] = field(default_factory=list)
 
     # Jurisdiction / mode (from the audited query)
     jurisdiction: str = "global"
@@ -468,7 +495,31 @@ class TracerEngine:
     def _resolve_backend(self) -> str:
         """Resolve which backend to use based on config and availability.
 
-        Returns engine type string: "cpp", "python", or "builtin".
+        Ou o backend tem as garantias que o Tracer promete, ou o sistema
+        recusa operar. Não há fallback silencioso.
+
+        As garantias em questão são duas, e são o produto:
+
+          1. Limite de Cauchy-Schwarz verificável — é o que produz o
+             commitment e o certificado de exclusão.
+          2. `search_with_commitment` — é o que o WORM assina.
+
+        Um backend numpy "builtin" não tem nenhuma das duas. Ele responde
+        consultas, mas o registro que produzir saria assinado com
+        `total_provably_excluded = 0` e pareceria saudável. Trocar a garantia
+        pelo resultado parecido é erosão silenciosa: `verify_record` diria
+        VALID e o selo não cobriria nada.
+
+        A única exceção é explícita e nomeada: `require_guarantees=False`.
+        Quem a usa está dizendo, no código, que quer busca sem certificado —
+        e recebe `engine_guarantees` no resultado para que a degradação seja
+        auditável em vez de escondida atrás de um `return "builtin"`.
+
+        Returns engine type string: "cpp", "madhava_pip" ou "python".
+
+        Raises:
+            BackendGuaranteeError: quando nenhum backend com garantias está
+                disponível e `require_guarantees` não foi desligado.
         """
         pref = self.config.engine_preference
 
@@ -488,13 +539,32 @@ class TracerEngine:
                 )
             return "python"
 
-        # auto: C++ → winnex_madhava (pip) → winnex_production → builtin
+        if pref == "builtin":
+            # Pedido explícito de backend sem garantias. Permitido, mas o
+            # chamador declarou isso e recebe a marca de degradação.
+            return "builtin"
+
+        # auto: C++ → winnex_madhava (pip) → winnex_production
         if _HAS_CPP_ENGINE:
             return "cpp"
         if _HAS_MADHAVA_PIP:
             return "madhava_pip"
         if _HAS_PY_ENGINE:
             return "python"
+
+        # Nenhum backend com garantias. Recusar é a resposta honesta.
+        if getattr(self.config, "require_guarantees", True):
+            raise BackendGuaranteeError(
+                "Nenhum backend com garantias disponivel: winnex-audit-cpp, "
+                "winnex-madhava e winnex-production-tools ausentes. "
+                "O Tracer assina certificados de exclusao; sem o limite de "
+                "Cauchy-Schwarz e sem search_with_commitment, o registro "
+                "sairia assinado e VAZIO (total_provably_excluded=0), "
+                "aparentando valido. "
+                "Instale winnex-madhava (pip install \"winnex-tracer[madhava]\") "
+                "ou, se voce quer deliberadamente busca SEM certificado, "
+                "declare isso: Config(require_guarantees=False)."
+            )
         return "builtin"
 
     # ------------------------------------------------------------------
@@ -715,6 +785,21 @@ class TracerEngine:
                 result.engine_used = (
                     "winnex-madhava (search_with_commitment + Ed25519)")
                 result.commitment = rec
+                # Garantias efetivas, medidas — nao presumidas do nome do
+                # backend. Um certificado com zero exclusoes provadas e
+                # criptograficamente valido e semanticamente vazio; a marca
+                # fica no registro para ser auditavel.
+                excl = int(rec.get("total_provably_excluded", 0))
+                result.engine_guarantees = [
+                    "cauchy_schwarz_bound",
+                    "search_with_commitment",
+                    "ed25519_signed",
+                ]
+                if excl > 0:
+                    result.engine_guarantees.append("certificate_non_empty")
+                else:
+                    result.engine_guarantees.append(
+                        "certificate_EMPTY(0_exclusions_proved)")
                 for s in rec.get("sampled_records", []):
                     result.audit.append(GovAuditRecord(
                         doc_id=int(s["doc_id"]),
