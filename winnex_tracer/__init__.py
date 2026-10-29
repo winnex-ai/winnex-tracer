@@ -16,4 +16,14 @@ tracer-gov/med/jus/gap packages). Install extras: winnex-tracer[gov], [med],
 
 Business Source License 1.1 (BSL 1.1) | pay@winnex.ai
 """
-__version__ = "1.1.0"
+# Fonte ÚNICA da versão: pyproject.toml lê daqui (dynamic = ["version"]).
+# Declarar em dois lugares permite que o wheel publique com uma versão
+# diferente da que o código reporta em runtime — e o PyPI recusa republicar
+# um número já usado, então a divergência só aparece depois.
+#
+# 1.1.1 (patch, não minor): `Signer(algorithm="Ed25519")` passou a LEVANTAR
+# SignatureGuaranteeError quando PyNaCl falta, em vez de cair para HMAC em
+# silêncio; e deixou de usar chave default. Isso é correção de segurança, não
+# funcionalidade nova — e a API pública não mudou. Pela semver, correção que
+# restaura o comportamento correto é patch.
+__version__ = "1.1.1"

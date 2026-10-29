@@ -4,7 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "winnex-tracer"
-version = "1.1.0"
+# Single source of truth: winnex_tracer.__version__. Declaring the version in
+# two places lets them drift, and a wheel can then publish with a version that
+# disagrees with what the code reports at runtime.
+dynamic = ["version"]
 description = "The unified Winnex tracer family — shared core (WORM, Ed25519 signing, AuditCommitment) plus the gov/med/jus/gap domains, in one namespaced package."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -56,6 +59,10 @@ Source = "https://github.com/winnex-ai/winnex-tracer"
 
 [tool.pytest.ini_options]
 testpaths = ["winnex_tracer/tests"]
+
+[tool.setuptools.dynamic]
+# Lido de winnex_tracer.__init__.__version__ — a única fonte de verdade.
+version = { attr = "winnex_tracer.__version__" }
 
 [tool.setuptools.packages.find]
 include = ["winnex_tracer*"]

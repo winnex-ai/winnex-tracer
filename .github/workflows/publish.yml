@@ -34,6 +34,25 @@ jobs:
         with:
           python-version: "3.10"
 
+      - name: Verify tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # O PyPI recusa republicar um número já usado, então uma tag que
+          # discorda da versão do pacote falha DEPOIS do build, de forma
+          # confusa. Falhar aqui, com a razão, antes de construir.
+          python - <<'PY'
+          import os, re, sys
+          sys.path.insert(0, ".")
+          import winnex_tracer
+          version = winnex_tracer.__version__
+          tag = os.environ["GITHUB_REF_NAME"]
+          if tag != f"v{version}":
+              print(f"ERRO: tag {tag!r} nao corresponde a versao do pacote "
+                    f"{version!r}. Esperado: v{version}", file=sys.stderr)
+              sys.exit(1)
+          print(f"OK: tag {tag} == versao {version}")
+          PY
+
       - name: Build sdist and wheel
         run: |
           python -m pip install --quiet --upgrade pip build
