@@ -88,8 +88,12 @@ def test_commitment_to_payload_shape():
     }
     p = commitment_to_payload(commitment, np.zeros(32, dtype=np.float32).tobytes(), k_requested=10)
     assert p["total_provably_excluded"] == 10
-    assert p["global_threshold"] == 0.5
+    # Correção C: floats vão no payload como float.hex() (IEEE-754 exato), não
+    # round(,6). O round podia inverter `upper_bound < global_threshold` na
+    # fronteira amostrada, e o registro assinado contradiria a própria prova.
+    assert float.fromhex(p["global_threshold"]) == 0.5
     assert p["k_requested"] == 10
     assert p["bound_violations"] == 0
     assert "query_fingerprint" in p
     assert len(p["sampled_records"]) == 1
+    assert float.fromhex(p["sampled_records"][0]["upper_bound"]) == 0.4

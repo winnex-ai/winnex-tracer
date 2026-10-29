@@ -697,6 +697,9 @@ class TracerEngine:
                 # audit_id is the single source of truth — no internal
                 # uuid drift between metadata and commitment.
                 from winnex_tracer.core import make_worm_record
+                # Campos numéricos do WORM record vão como float.hex()
+                # (Correção C); payload_float decodifica os dois formatos.
+                from winnex_tracer.core.commitment import payload_float
                 rec = make_worm_record(
                     self._engine, qc, k=k_eff,
                     max_sample=min(int(self.config.max_audit_records_per_query), 200),
@@ -716,8 +719,8 @@ class TracerEngine:
                     result.audit.append(GovAuditRecord(
                         doc_id=int(s["doc_id"]),
                         true_cosine=0.0,
-                        upper_bound=float(s["upper_bound"]),
-                        threshold=float(rec["global_threshold"]),
+                        upper_bound=payload_float(s["upper_bound"]),
+                        threshold=payload_float(rec["global_threshold"]),
                         excluded=bool(s["excluded"]),
                         stage="stage1",
                         verdict="PROVABLY_EXCLUDED" if s["excluded"] else "SURVIVED",

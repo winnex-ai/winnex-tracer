@@ -83,6 +83,40 @@ def public_key_hex() -> str:
     return sk.verify_key.encode().hex()
 
 
+def _exact_float(value: Any) -> str:
+    """Serialize a float to its EXACT canonical representation.
+
+    WHY (2026-09-03, correção C): the old `round(float(x), 6)` could INVERT
+    the core proof `upper_bound < global_threshold`. The commitment samples the
+    docs NEAREST the threshold (boundary-biased) — precisely where the gap can
+    be < 1e-6. If ub and threshold differ by < 5e-7 and straddle a rounding
+    boundary, `round(ub, 6) >= round(thr, 6)` while `ub < thr` in the motor —
+    the signed record would contradict the proof it is supposed to witness.
+
+    `float.hex()` is the IEEE-754 exact, canonical, deterministic representation
+    of the value the motor decided with (a float32 promoted to Python float).
+    It is JSON-serializable (as a string), reproduces the comparison bit-for-bit,
+    and is stable across runs/processes — so the Ed25519 signature still covers
+    an immutable payload. Auditors can decode hex → float with `float.fromhex`.
+    """
+    return float(value).hex()
+
+
+def payload_float(value: Any) -> float:
+    """Decodifica um float do payload assinado.
+
+    Espelho de `_exact_float`. Os campos numéricos do WORM record vão como
+    `float.hex()` (Correção C), então consumidores que fazem `float(x)`
+    quebram com `ValueError: could not convert string to float: '0x1.ep-8'`.
+
+    Aceita os dois formatos, para ler registros antigos gravados antes da
+    Correção C sem migração.
+    """
+    if isinstance(value, str):
+        return float.fromhex(value)
+    return float(value)
+
+
 def commitment_to_payload(
     commitment: Dict[str, Any],
     query_vector_bytes: bytes,
@@ -105,7 +139,8 @@ def commitment_to_payload(
     samples = [
         {
             "doc_id": int(s["doc_id"]),
-            "upper_bound": round(float(s["upper_bound"]), 6),
+            # Correção C: valor EXATO (float.hex), não round(,6) — ver _exact_float.
+            "upper_bound": _exact_float(s["upper_bound"]),
             "excluded": bool(s["excluded"]),
         }
         for s in commitment.get("sampled_records", [])
@@ -116,7 +151,9 @@ def commitment_to_payload(
         "query_fingerprint": hashlib.sha256(query_vector_bytes).hexdigest(),
         "k_requested": int(k_requested),
         "total_provably_excluded": int(commitment["total_excluded_count"]),
-        "global_threshold": round(float(commitment["global_threshold"]), 6),
+        # Correção C: global_threshold EXATO (float.hex) — a prova ub<thr não
+        # pode ser invertida por arredondamento no registro assinado.
+        "global_threshold": _exact_float(commitment["global_threshold"]),
         "bound_pairs": int(commitment["bound_pairs"]),
         "bound_violations": int(commitment["bound_violations"]),
         "indices": [int(i) for i in commitment.get("indices", [])],
@@ -178,6 +215,11 @@ def verify_record(record: Dict[str, Any], public_key_hex_str: str) -> Dict[str, 
     rec.pop("public_key_hint", "")
     # _latency_ms is informational metadata added after signing; exclude it too.
     rec.pop("_latency_ms", "")
+    # _coverage is post-signature metadata added by
+    # InstrumentedEngine.make_worm_record when min_coverage is enforced. Like
+    # _latency_ms it did not exist at sign time, so it must not participate in
+    # the canonical bytes.
+    rec.pop("_coverage", "")
     if not sig_hex:
         return {"status": "INVALID", "reason": "missing signature_hex", "verified": False}
     try:
