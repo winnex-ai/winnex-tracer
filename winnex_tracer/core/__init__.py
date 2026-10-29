@@ -14,7 +14,7 @@ certificado carrega prova antes de tratá-lo como resultado.
 
 Licensed under Business Source License 1.1 (BSL 1.1) | contact: licensing@winnex.ai
 """
-from .signer import Signer
+from .signer import Signer, SignatureGuaranteeError
 from .audit_log import AuditLogTracker
 from .retention import RetentionPolicy
 from .commitment import (
@@ -37,6 +37,7 @@ from .certmode import (
 
 __all__ = [
     "Signer",
+    "SignatureGuaranteeError",
     "AuditLogTracker",
     "RetentionPolicy",
     "make_worm_record",

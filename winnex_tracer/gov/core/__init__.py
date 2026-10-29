@@ -2,7 +2,14 @@
 
 Licensed under Business Source License 1.1 (BSL 1.1) | contact: licensing@winnex.ai
 """
-from .tracer import TracerEngine, Config, GovMetadata, GovAuditRecord, GovAuditResult
+from .tracer import (
+    TracerEngine,
+    Config,
+    GovMetadata,
+    GovAuditRecord,
+    GovAuditResult,
+    BackendGuaranteeError,
+)
 # The base infrastructure lives in winnex-tracer-core; re-export for
 # backward compatibility (from core import Signer / AuditLogTracker / ...).
 from winnex_tracer.core import (  # noqa: F401
