@@ -8,6 +8,144 @@ A versão **canônica** vive em `winnex_tracer/__init__.py:__version__`.
 precisa corresponder exatamente — o workflow de publicação falha antes do
 build se não corresponder.
 
+## [1.1.3] — 2026-11-01
+
+Correção que faz o certificado passar de "assinatura válida" a "afirmação
+confrontável". API pública inalterada; o payload assinado ganha campos.
+
+### Alterado — dependências declaradas (eram fantasma)
+
+`core/certmode.py` importa `winnex-ai-normalize` para rotear a config nos modos
+que certificam, e **não a declarava em lugar nenhum**. Numa instalação limpa,
+`open_engine(..., certificate_mode="commitment")` caía nos defaults do motor
+(`random, s1=64`), que medem **0,00%** de cobertura — exatamente o defeito que
+o certmode corrigiu, reintroduzido pela embalagem.
+
+- novo extra `certmode`: `pynacl`, `winnex-madhava>=1.9.23`,
+  `winnex-ai-normalize>=1.4.6`.
+- **piso do madhava sobe de `>=1.9.2` para `>=1.9.23`.** 1.9.2 anunciar o
+  commitment não basta: só a 1.9.23 emite os campos de escopo. Com 1.9.22 o
+  `verify_record` **aprova** uma assinatura impossível e apenas marca
+  `claim_checkable: False` — medido em 2026-11-01.
+
+### Corrigido — o certificado provava integridade, não soundness
+
+Assinei com a chave legítima `total_provably_excluded = 99999` num corpus de
+20.000 — exclusão matematicamente impossível — e o `verify_record` devolvia
+**VALID**. Um motor comprometido afirmando excluir 100% do corpus também passava.
+
+> A assinatura prova que o registro **não mudou**. Não prova que a afirmação era
+> verdadeira **quando foi assinada**.
+
+Correção em duas pontas (a segunda já publicada no madhava 1.9.23):
+
+- `commitment_to_payload` propaga os campos de escopo quando o motor os emite:
+  `n_corpus`, `exact_scored`, `pruned_by_bound`, `pruned_by_prefilter`,
+  `recall_guarantee`, `recall_guarantee_basis`. **Aditivo e opcional** —
+  motores antigos continuam assinando o payload anterior.
+- `verify_record` faz **claim sanity**: `total <= n_corpus - k`,
+  `bound_pairs <= n_corpus`, e `pruned_by_bound == total`. O veredito expõe
+  `claim_checkable` e diz na razão quando a afirmação **não é confrontável**,
+  em vez de fingir que é.
+
+**Medido no benchmark de 2026-11-01** (`results/2026-11/correcoes_20261101.json`):
+
+| cenário | status |
+|---|---|
+| registro honesto | VALID, `claim_checkable: true` |
+| `total=99999` em corpus de 20.000 | **INVALID** — `99999 > n_corpus-k=19997` |
+| o mesmo ataque **sem** `n_corpus` (motor < 1.9.23) | VALID, `claim_checkable: false` |
+
+Custo do escopo assinado: **+158 bytes** no payload canônico.
+
+### Corrigido — o WORM apagava o fim sem acusar
+
+`verify_integrity()` validava a cadeia **contra ela mesma**: cada bloco confere
+`prev_hash` com o anterior. Apagar blocos do fim não viola nenhuma dessas
+relações — os sobreviventes continuam mutuamente consistentes.
+
+Medido: 20 blocos → apagar os últimos 5 → `violations=0`,
+`chain_integrity_verified=True`, e o `.chain` apontando para um hash que não
+existia mais em disco. Para um WORM usado em conformidade LGPD/LAI, remoção
+silenciosa é falha de requisito.
+
+Agora o `.chain` (escrito sob a mesma trava do bloco) é comparado com o
+**último bloco realmente em disco**. Custo zero. Campos novos:
+`truncation_detected`, `truncation_detail`.
+
+**Escopo declarado:** isso pega truncamento de cauda, **não** um atacante que
+reescreva os dois arquivos. Para esse caso, `compute_anchor()` +
+`verify_against_anchor()`: a âncora copiada para **fora** do filesystem compara
+`block_count` e `last_hash` e não pode ser derrotada de dentro.
+
+### Corrigido — sem o `.chain`, a cadeia quebrava em silêncio
+
+`_load_chain_state` devolvia `b""` quando o `.chain` faltava, e o append
+seguinte gravava `prev_hash=""` no meio de um histórico existente. Medido:
+apagar o `.chain` e fazer um append → `violations=1`, **e o append não
+falhava** — produzia um registro inválido em silêncio. Agora reconstrói do
+JSONL, comparando com a **última linha**, não apenas quando o arquivo falta.
+
+### Corrigido — `block_number` do receipt era o número de arquivos
+
+Era `len(rglob("records.jsonl"))`. Medido: 20 `append` no mesmo dia devolviam
+`block_number=1` em **todos os 20**. O receipt é a testemunha que o cliente
+guarda; devolver 1 quando existem 20 é pior que não devolver nada, porque
+**parece** um contador. Agora conta blocos, mantido do estado em disco na carga
+e incrementado sob a trava.
+
+### Alterado — o `fsync` do `.chain` virou opt-in (`durable_chain`)
+
+O `.chain` não é dado — é um **ponteiro derivável** do JSONL. O último bloco
+gravado já carrega o próprio `block_hash`, e um crash entre o append do bloco
+(que **é** fsyncado) e a gravação do ponteiro deixa um `.chain` atrasado que o
+próximo `_load_chain_state` corrige.
+
+`WormStorage(..., durable_chain=True)` restaura o comportamento anterior.
+
+**Medido isolado, 3 repetições, mediana** (28 núcleos, sem carga concorrente):
+
+| `durable_chain` | ms/append | blocos/s |
+|---|---:|---:|
+| `False` (novo padrão) | **1,447** | **691** |
+| `True` | 2,125 | 470 |
+
+Ganho de **31,9%** ao relaxar o fsync do ponteiro; o fsync do **bloco**
+continua sempre.
+
+### Corrigido — o modo "commitment" não certificava
+
+`open_engine(..., certificate_mode="commitment")` sem config explícita
+construía com os defaults do motor — `random, s1=64` — que medem **0,00%** de
+cobertura. O modo dizia "vou certificar" e a engine não tinha o que certificar.
+
+Agora, nos modos que certificam, `open_engine` pede a config ao roteador do
+`winnex-ai-normalize`, que mede `bound_fraction` e `bound_fraction_pca`, escolhe
+a base e declara `certifiable`.
+
+- `certificate_mode="off"` **não** roteia.
+- Chaves explícitas em `**build_kwargs` **sempre vencem** o roteador.
+- `eng.route_decision` expõe a decisão; sem isso o modo não é auditável.
+
+**Medido em 2026-11-01** (corpus low-rank 20.000 × 384d, 10 queries):
+
+| modo | config aplicada | cobertura mediana | vazias |
+|---|---|---:|---:|
+| `off` | não roteia | n/a | n/a |
+| `commitment` | `pca_corpus s1=192` | **0,99985** | **0** |
+
+**Custo medido isolado** (mediana de 3, 50 queries): `off` 0,263 ms/query,
+`commitment` 0,530 ms/query → **2,01×**.
+
+### Tests
+
+**178 passed** (suíte completa, com os pacotes locais no path: madhava 1.9.23,
+normalize 1.4.6). Inclui os 8 casos de `test_dois_modos_2026_10_30.py`.
+
+**A suíte só passa com o normalize >= 1.4.6 instalado.** Com a 1.4.5, 2 testes
+falham porque `certification_action` não existe — que é precisamente a
+dependência que esta versão passa a declarar.
+
 ## [Não publicado]
 
 ### Corrigido — o modo "commitment" não certificava

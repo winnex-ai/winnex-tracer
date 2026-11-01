@@ -36,7 +36,18 @@ dependencies = [
 
 [project.optional-dependencies]
 signature = ["pynacl>=1.5"]
-madhava = ["winnex-madhava>=1.9.2"]
+# O piso sobe para 1.9.23: e a versao que assina os campos de escopo
+# (n_corpus, exact_scored, pruned_by_bound...). Com 1.9.22 o `verify_record`
+# continua APROVANDO uma assinatura matematicamente impossivel, apenas
+# declarando `claim_checkable: False` — medido em 2026-11-01.
+madhava = ["winnex-madhava>=1.9.23"]
+# MODOS QUE CERTIFICAM (2026-11-01). `core/certmode.py` importa
+# `winnex_ai_normalize` para ROTEAR a config: sem ele, `open_engine(...,
+# certificate_mode="commitment")` cai nos defaults do motor (random, s1=64),
+# que medem 0,00% de cobertura — o modo diria "vou certificar" e nao teria o
+# que certificar. A dependencia era fantasma: usada em producao e nao
+# declarada em lugar nenhum.
+certmode = ["pynacl>=1.5", "winnex-madhava>=1.9.23", "winnex-ai-normalize>=1.4.6"]
 gov = ["fastapi>=0.100", "uvicorn>=0.20"]
 med = ["fastapi>=0.100", "uvicorn>=0.20", "sentence-transformers>=2.2"]
 jus = ["fastapi>=0.100", "uvicorn>=0.20", "sentence-transformers>=2.2"]
@@ -45,7 +56,8 @@ pg = ["psycopg2-binary>=2.9"]
 blockchain = ["web3>=6.0"]
 all = [
     "pynacl>=1.5",
-    "winnex-madhava>=1.9.2",
+    "winnex-madhava>=1.9.23",
+    "winnex-ai-normalize>=1.4.6",
     "fastapi>=0.100",
     "uvicorn>=0.20",
     "sentence-transformers>=2.2",
