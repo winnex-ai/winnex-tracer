@@ -10,6 +10,70 @@ build se não corresponder.
 
 ## [Não publicado]
 
+### Corrigido — o WORM apagava o fim sem acusar
+
+`verify_integrity()` validava a cadeia **contra ela mesma**: cada bloco confere
+`prev_hash` com o anterior. Apagar blocos do fim não viola nenhuma dessas
+relações — os sobreviventes continuam mutuamente consistentes.
+
+Medido: 20 blocos → apagar os últimos 5 → `violations=0`,
+`chain_integrity_verified=True`, e o `.chain` apontando para um hash que não
+existia mais em disco. Para um WORM usado em conformidade LGPD/LAI, remoção
+silenciosa é falha de requisito.
+
+Agora o `.chain` (escrito sob a mesma trava do bloco) é comparado com o
+**último bloco realmente em disco**. Custo zero. Campos novos:
+`truncation_detected`, `truncation_detail`.
+
+**Escopo declarado:** isso pega truncamento de cauda, **não** um atacante que
+reescreva os dois arquivos. Para esse caso, `compute_anchor()` +
+`verify_against_anchor()`: a âncora copiada para **fora** do filesystem compara
+`block_count` e `last_hash` e não pode ser derrotada de dentro. Testado: o
+atacante trunca o JSONL **e** reescreve o `.chain` — a verificação interna
+passa, a contra-âncora falha.
+
+### Corrigido — `block_number` do receipt era o número de arquivos
+
+Era `len(rglob("records.jsonl"))`. Medido: 20 `append` no mesmo dia devolviam
+`block_number=1` em **todos os 20`. O receipt é a testemunha que o cliente
+guarda; devolver 1 quando existem 20 é pior que não devolver nada, porque
+**parece** um contador. Agora conta blocos, mantido do estado em disco na carga
+e incrementado sob a trava.
+
+### Corrigido — o certificado provava integridade, não soundness
+
+O achado central. Assinei com a chave **legítima** `total_provably_excluded =
+99999` num corpus de 20.000 — exclusão matematicamente impossível — e o
+`verify_record` devolvia **VALID**. Um motor comprometido afirmando excluir
+**100% do corpus** também passava.
+
+> A assinatura prova que o registro **não mudou**. Não prova que a afirmação
+> era verdadeira **quando foi assinada**.
+
+Correção em duas pontas:
+
+- `commitment_to_payload` propaga os campos de escopo quando o motor os emite:
+  `n_corpus`, `exact_scored`, `pruned_by_bound`, `pruned_by_prefilter`,
+  `recall_guarantee`, `recall_guarantee_basis`. **Aditivo e opcional** —
+  motores antigos continuam assinando o payload anterior.
+- `verify_record` faz **claim sanity**: `total <= n_corpus - k` (provar que
+  todo documento está fora de um top-K de k≥1 é contradição),
+  `bound_pairs <= n_corpus`, e `pruned_by_bound == total` (descrevem o mesmo
+  fato por dois caminhos). O veredito expõe `claim_checkable` e diz na razão
+  quando a afirmação **não é confrontável**, em vez de fingir que é.
+
+**O limite em N−k é o teto teórico**, e os dois corpora reais dos testes
+existentes ficam exatamente nele: `15540 = 20000−10` e `145670 = 145673−3`.
+Isso confirma o limite em vez de contradizê-lo.
+
+### Custos
+
+`verify_record` 0,033 ms (+0,001), `append` 1,850 ms / 541 blocos/s
+(inalterado), `verify_integrity` 0,60 ms.
+
+**Tests:** 166 passed (152 anteriores + 14 novos em
+`test_worm_certificado_2026_10_30.py`).
+
 ## [1.1.2] — 2026-10-29
 
 Correção de integridade da cadeia WORM. Sem mudança na API pública.
