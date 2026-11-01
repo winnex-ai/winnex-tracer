@@ -251,3 +251,88 @@ def test_o_commitment_do_motor_produz_registro_checavel(chave):
     v = tc.verify_record(rec, chave)
     assert v["status"] == "VALID"
     assert v["claim_checkable"] is True
+
+
+# ---------------------------------------------------------------------------
+# 6. FSYNC E DURABILIDADE — o .chain é ponteiro, não dado
+# ---------------------------------------------------------------------------
+
+def test_chain_ausente_e_reconstruida_do_jsonl(worm):
+    """REGRESSÃO. Sem o .chain, `_load_chain_state` devolvia b"" e o append
+    seguinte gravava prev_hash="" no meio de um histórico existente —
+    corrompendo a cadeia em vez de continuá-la. E o append NÃO falhava:
+    produzia um registro inválido em silêncio.
+
+    O .chain é derivável: é o último block_hash do JSONL. Reconstruir é a
+    diferença entre "perdi o cache" e "perdi a cadeia"."""
+    for i in range(5):
+        worm.append({"audit_id": f"r{i}"})
+    (pathlib.Path(worm.base_path) / ".chain").unlink()
+
+    from winnex_tracer.persistence import WormStorage
+    w2 = WormStorage(worm.base_path)
+    w2.append({"audit_id": "pos_crash"})
+    r = w2.verify_integrity()
+    assert r["violations"] == 0, "a cadeia quebrou depois de perder o .chain"
+    assert r["total_blocks"] == 6
+
+
+def test_chain_atrasado_nao_quebra_a_cadeia(worm):
+    """O caso do crash entre gravar o bloco (fsyncado) e gravar o ponteiro: o
+    .chain fica apontando para o penúltimo. Reconstruir só quando o arquivo
+    FALTA não cobria isso — medido, a cadeia quebrava (viol=1).
+
+    A comparação certa é com a última linha do JSONL, que é sempre a verdade
+    porque é o dado fsyncado."""
+    for i in range(5):
+        worm.append({"audit_id": f"s{i}"})
+    arq = sorted(pathlib.Path(worm.base_path).rglob("records.jsonl"))[0]
+    linhas = arq.read_text().strip().split("\n")
+    (pathlib.Path(worm.base_path) / ".chain").write_text(
+        json.loads(linhas[-2])["block_hash"])   # ponteiro atrasado
+
+    from winnex_tracer.persistence import WormStorage
+    w2 = WormStorage(worm.base_path)
+    w2.append({"audit_id": "depois"})
+    r = w2.verify_integrity()
+    assert r["violations"] == 0, "ponteiro atrasado quebrou a cadeia"
+    assert r["total_blocks"] == 6
+
+
+def test_append_nao_e_O_N(worm):
+    """REGRESSÃO que EU introduzi ao corrigir o `block_number`: a contagem de
+    blocos entrou no `_load_chain_state`, que roda DENTRO DA TRAVA a cada
+    append. Isso tornava o WORM quadrático — medido 0,224 ms/call em 2.000
+    blocos, ~8,3 ms por append em 100.000.
+
+    Uma correção de campo de receipt não pode custar o throughput do WORM."""
+    import time
+    for i in range(40):
+        worm.append({"audit_id": f"c{i}"})
+    t0 = time.perf_counter()
+    for i in range(40):
+        worm.append({"audit_id": f"d{i}"})
+    cedo = (time.perf_counter() - t0) / 40
+
+    for i in range(400):
+        worm.append({"audit_id": f"e{i}"})
+    t0 = time.perf_counter()
+    for i in range(40):
+        worm.append({"audit_id": f"f{i}"})
+    tarde = (time.perf_counter() - t0) / 40
+
+    # 10x mais blocos não pode custar 2x mais por append.
+    assert tarde < cedo * 2.0, (
+        f"append degradou com o tamanho: {cedo*1e3:.3f}ms -> {tarde*1e3:.3f}ms "
+        f"(varredura O(N) de volta ao caminho quente)")
+
+
+def test_durable_chain_preserva_a_opcao(worm):
+    """O fsync do .chain virou opt-in. Quem exigir que o ponteiro sobreviva a
+    um crash sem reconstrução passa `durable_chain=True`; o padrão economiza
+    39% do append confiando no dado fsyncado + reconstrução."""
+    from winnex_tracer.persistence import WormStorage
+    w = WormStorage(worm.base_path, durable_chain=True)
+    w.append({"audit_id": "dur"})
+    assert w._durable_chain is True
+    assert WormStorage(worm.base_path)._durable_chain is False

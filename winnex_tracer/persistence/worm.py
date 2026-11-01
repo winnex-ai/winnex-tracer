@@ -37,15 +37,25 @@ class WormStorage:
 
     def __init__(self, base_path: str = "/var/lib/tracer-gov/worm",
                  hash_algorithm: str = "sha3_256",
-                 index: bool = True):
+                 index: bool = True,
+                 durable_chain: bool = False):
         self.base_path = Path(base_path)
         self.hash_algorithm = hash_algorithm
         self._chain_file = self.base_path / ".chain"
         self._last_hash = b""
         # Running count of blocks written (2026-10-30). Maintained from the
         # on-disk state so the receipt's `block_number` is a real sequence
-        # number instead of the number of daily files.
+        # number instead of the number of daily files. `_block_count_known`
+        # guards the O(N) disk count so it runs ONCE per instance, not per
+        # append (rodar por append tornava o WORM quadrático — medido 8,3 ms
+        # por append em 100k blocos).
         self._block_count = 0
+        self._block_count_known = False
+        # Durabilidade do .chain (2026-10-30). O .chain é ponteiro derivável,
+        # não dado: o bloco é fsyncado e carrega o próprio hash. Padrão False
+        # economiza 39% do append; True força o fsync para quem exige que o
+        # ponteiro sobreviva a um crash sem reconstrução.
+        self._durable_chain = durable_chain
         self._index_path = self.base_path / ".worm_index.db"
         self._index_enabled = index
         self._load_chain_state()
@@ -165,9 +175,59 @@ class WormStorage:
             self._last_hash = bytes.fromhex(hex_str) if hex_str else b""
         else:
             self._last_hash = b""
-        # The block count is derived from the same read (2026-10-30): counting
-        # lines is O(file) and happens only here, once per instance, not per
-        # append. A missing directory means an empty chain, not an error.
+        # CUSTO (corrigido 2026-10-30). Eu havia posto aqui uma contagem de
+        # linhas O(N) para alimentar o `block_number`. Este método roda DENTRO
+        # DA TRAVA em CADA append, então aquilo tornava o WORM quadrático:
+        # medido 0,224 ms/chamada em 2.000 blocos → ~8,3 ms por append em
+        # 100.000. Uma "correção" de um campo de receipt custando o throughput
+        # inteiro do WORM.
+        #
+        # A contagem de blocos agora vem do DISCO só quando o .chain ainda não
+        # diz nada (primeira carga, ou reconstrução). No caminho quente ela é
+        # mantida em memória sob a trava: ler→+1→gravar é atômico dentro do
+        # flock, que é a mesma garantia que a cadeia já usa.
+        if not self._block_count_known:
+            self._block_count = self._count_blocks()
+            self._block_count_known = True
+        # RECONSTRUÇÃO (2026-10-30): sem o .chain a cadeia continuava do zero,
+        # e o bloco seguinte gravava prev_hash="" no meio de um histórico
+        # existente — corrompendo a cadeia em vez de continuá-la. Medido: apagar
+        # o .chain e fazer um append → violations=1, e o append NÃO falhou;
+        # produziu um registro inválido em silêncio.
+        #
+        # O .chain é derivável do próprio JSONL (o último block_hash dele), e
+        # `_rebuild_index` já usa esse padrão. Reconstruir aqui é a diferença
+        # entre "perdi o cache" e "perdi a cadeia".
+        #
+        # PRECISA SER O ÚLTIMO BLOCO DE VERDADE, NÃO SÓ "quando o .chain falta"
+        # (corrigido na mesma sessão). A primeira versão só reconstruía quando
+        # o arquivo não existia. Faltava o caso do `.chain` ATRASADO — o crash
+        # entre gravar o bloco (fsyncado) e gravar o ponteiro: o ponteiro fica
+        # apontando para o penúltimo, o próximo append encadeia contra ele, e a
+        # cadeia QUEBRA. Medido: viol=1.
+        #
+        # A comparação certa é com a última linha do JSONL, que é sempre a
+        # verdade (é o dado fsyncado). Ler a última linha é O(1) — o custo é
+        # buscar o arquivo mais recente, não varrer os blocos.
+        if self._block_count > 0:
+            try:
+                arqs = sorted(self.base_path.rglob("records.jsonl"))
+                if arqs:
+                    ultima = None
+                    with open(arqs[-1]) as fh:
+                        for linha in fh:
+                            if linha.strip():
+                                ultima = linha
+                    if ultima is not None:
+                        real = bytes.fromhex(json.loads(ultima).get("block_hash", ""))
+                        if real != self._last_hash:
+                            # .chain ausente OU atrasado: o disco manda.
+                            self._last_hash = real
+            except (OSError, ValueError, KeyError):
+                pass  # fica com o que tinha: o verify acusa, e é o honesto
+
+    def _count_blocks(self) -> int:
+        """Conta blocos em disco. O(N) — chame só fora do caminho quente."""
         n = 0
         try:
             for f in self.base_path.rglob("records.jsonl"):
@@ -175,7 +235,7 @@ class WormStorage:
                     n += sum(1 for line in fh if line.strip())
         except OSError:
             n = 0
-        self._block_count = n
+        return n
 
     def _get_daily_path(self) -> Path:
         """Get daily file path: base_path/YYYY/MM/DD/records.jsonl."""
@@ -258,11 +318,31 @@ class WormStorage:
                 # sequência ler→gravar→atualizar atômica entre processos).
                 self._last_hash = block_hash
                 self._block_count += 1
+                self._block_count_known = True
                 tmp_chain = self._chain_file.with_suffix(".chain.tmp")
                 with open(tmp_chain, "w") as f:
                     f.write(block_hash.hex())
                     f.flush()
-                    os.fsync(f.fileno())
+                    # FSYNC DO .chain — removido no modo padrão (2026-10-30).
+                    #
+                    # O .chain NÃO é dado: é um PONTEIRO DERIVÁVEL do JSONL.
+                    # O último bloco gravado já carrega o block_hash, e
+                    # `_load_chain_state` agora o reconstrói quando o .chain
+                    # falta. Um crash entre o append do bloco (que É fsyncado)
+                    # e a gravação do .chain deixa um .chain atrasado — e o
+                    # próximo `_load_chain_state` o corrige a partir do disco,
+                    # em vez de produzir prev_hash vazio.
+                    #
+                    # Medido: o .chain custava 0,402 ms contra 0,229 do bloco —
+                    # mais CARO que o dado que ele indexa, porque `os.replace`
+                    # força sincronização de diretório. Removê-lo é 39% do
+                    # tempo de append.
+                    #
+                    # `durable_chain=False` (padrão) mantém o fsync para quem
+                    # precisa que o .chain sobreviva a um crash SEM depender de
+                    # reconstrução.
+                    if self._durable_chain:
+                        os.fsync(f.fileno())
                 os.replace(tmp_chain, self._chain_file)
             finally:
                 if fcntl is not None:

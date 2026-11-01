@@ -10,6 +10,57 @@ build se não corresponder.
 
 ## [Não publicado]
 
+### Alterado — o `fsync` do `.chain` virou opt-in (`durable_chain`)
+
+O gargalo nº 3 da análise: **52% do custo do certificado era `fsync`**, e a
+criptografia só 6%. Decompondo por escrita:
+
+| escrita | com fsync | sem fsync | custo do fsync |
+|---|---:|---:|---:|
+| bloco (dado) | 0,229 ms | 0,018 ms | 0,211 ms |
+| `.chain` (ponteiro) | **0,402 ms** | 0,055 ms | **0,346 ms** |
+
+O `.chain` custava **mais que o dado que ele indexa**, porque `os.replace`
+força sincronização de diretório.
+
+**Por que o `fsync` do `.chain` é dispensável:** o `.chain` não é dado — é um
+**ponteiro derivável** do JSONL. O último bloco gravado já carrega o próprio
+`block_hash`. Um crash entre o append do bloco (que **é** fsyncado) e a
+gravação do ponteiro deixa um `.chain` atrasado, e o próximo
+`_load_chain_state` o corrige a partir do disco.
+
+`WormStorage(..., durable_chain=True)` restaura o comportamento anterior para
+quem exige que o ponteiro sobreviva sem depender de reconstrução.
+
+**Medido:** `durable_chain=False` → 661 blocos/s · `durable_chain=True` →
+421 blocos/s. E `durable_chain=False` **não degrada com o tamanho**: 1,37 ms
+tanto em 500 quanto em 4.000 blocos pré-existentes.
+
+### Corrigido — sem o `.chain`, a cadeia quebrava em silêncio
+
+`_load_chain_state` devolvia `b""` quando o `.chain` faltava, e o append
+seguinte gravava `prev_hash=""` no meio de um histórico existente. Medido:
+apagar o `.chain` e fazer um append → `violations=1`, **e o append não
+falhava** — produzia um registro inválido em silêncio.
+
+O `.chain` é derivável (último `block_hash` do JSONL), e `_rebuild_index` já
+usava esse padrão. Agora `_load_chain_state` reconstrói — mas **comparando com
+a última linha do JSONL, não apenas quando o arquivo falta**. A primeira versão
+desta correção só cobria o arquivo ausente; faltava o `.chain` **atrasado** (o
+crash entre gravar o bloco e gravar o ponteiro), que também quebrava a cadeia.
+Medido: `viol=1` → `viol=0` depois da correção completa.
+
+### Corrigido — regressão que eu introduzi: `append` virou O(N)
+
+Ao corrigir o `block_number`, pus uma contagem de linhas no
+`_load_chain_state`, que roda **dentro da trava a cada append**. Isso tornava o
+WORM quadrático: medido 0,224 ms/chamada em 2.000 blocos, **~8,3 ms por append
+em 100.000**.
+
+A contagem agora sai do disco só quando o cache ainda não a conhece; no caminho
+quente ela é mantida em memória sob o flock. Teste de regressão
+(`test_append_nao_e_O_N`) falha se 10× mais blocos custarem 2× mais por append.
+
 ### Corrigido — o WORM apagava o fim sem acusar
 
 `verify_integrity()` validava a cadeia **contra ela mesma**: cada bloco confere
@@ -71,7 +122,7 @@ Isso confirma o limite em vez de contradizê-lo.
 `verify_record` 0,033 ms (+0,001), `append` 1,850 ms / 541 blocos/s
 (inalterado), `verify_integrity` 0,60 ms.
 
-**Tests:** 166 passed (152 anteriores + 14 novos em
+**Tests:** 170 passed (152 anteriores + 18 novos em
 `test_worm_certificado_2026_10_30.py`).
 
 ## [1.1.2] — 2026-10-29
