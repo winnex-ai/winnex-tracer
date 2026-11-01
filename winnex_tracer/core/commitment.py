@@ -145,7 +145,7 @@ def commitment_to_payload(
         }
         for s in commitment.get("sampled_records", [])
     ]
-    return {
+    payload = {
         "audit_id": audit_id or str(uuid.uuid4()),
         "timestamp": time.time(),
         "query_fingerprint": hashlib.sha256(query_vector_bytes).hexdigest(),
@@ -159,6 +159,36 @@ def commitment_to_payload(
         "indices": [int(i) for i in commitment.get("indices", [])],
         "sampled_records": samples,
     }
+    # SCOPE FIELDS (2026-10-30) — os campos que tornam a afirmação CHECÁVEL.
+    #
+    # Antes disto o registro assinado dizia "provei N exclusões" sem dizer
+    # contra quantos documentos. Medido: um motor (ou um signer) podia assinar
+    # `total_provably_excluded = 99999` num corpus de 20.000 e o
+    # `verify_record` devolvia VALID — a assinatura é checada, a afirmação não.
+    #
+    # Com `n_corpus` o auditor pode exigir `total_provably_excluded <= n_corpus`
+    # e `bound_pairs == n_corpus`. Com `pruned_by_bound` pode exigir que o total
+    # seja o que o motor de fato provou. Com `recall_guarantee` sabe se o selo é
+    # global ou só do pool.
+    #
+    # ADITIVO E OPCIONAL: só entram se o commitment os trouxer. Registros de
+    # motores antigos continuam assinando o payload anterior, e
+    # `verify_record` continua verificando os dois formatos.
+    _scope = {
+        "n_corpus": "n_corpus",
+        "exact_scored": "exact_scored",
+        "pruned_by_bound": "pruned_by_bound",
+        "pruned_by_prefilter": "pruned_by_prefilter",
+    }
+    for destino, origem in _scope.items():
+        if origem in commitment and commitment[origem] is not None:
+            payload[destino] = int(commitment[origem])
+    # Strings de escopo: não são números, entram como vieram (o motor declara
+    # "exact_global"/"pool_only" e a base que estabeleceu o rótulo).
+    for destino in ("recall_guarantee", "recall_guarantee_basis"):
+        if commitment.get(destino) is not None:
+            payload[destino] = str(commitment[destino])
+    return payload
 
 
 def integrity_hash(payload: Dict[str, Any]) -> str:
@@ -238,7 +268,59 @@ def verify_record(record: Dict[str, Any], public_key_hex_str: str) -> Dict[str, 
     if ih and hashlib.sha256(canonical).hexdigest() != ih:
         return {"status": "INVALID", "reason": "integrity_hash mismatch", "verified": False}
 
-    return {"status": "VALID", "reason": "Ed25519 signature + integrity hash verified", "verified": True}
+    # 3. CLAIM SANITY (2026-10-30) — a parte que a assinatura NÃO cobre.
+    #
+    # A assinatura prova que o registro não mudou desde que foi assinado. Ela
+    # não prova que a afirmação era verdadeira QUANDO foi assinada. Medido: um
+    # commitment com `total_provably_excluded` igual ao corpus inteiro saía
+    # VALID — matematicamente impossível (se o motor provou que TODO documento
+    # está fora do top-K, não sobrou top-K).
+    #
+    # Isto não substitui a re-execução da busca; verifica o que é verificável
+    # sem os vetores: coerência INTERNA e contra o tamanho do corpus, quando
+    # ele foi assinado (`n_corpus` — campo novo; registros antigos pulam).
+    #
+    # `claim_checks` é um PISO, não a prova: um motor comprometido que minta
+    # dentro dos limites continua passando. Por isso o campo se declara.
+    claim = []
+    n_corpus = rec.get("n_corpus")
+    total = rec.get("total_provably_excluded")
+    bpairs = rec.get("bound_pairs")
+    pbound = rec.get("pruned_by_bound")
+    if isinstance(n_corpus, int) and n_corpus > 0:
+        if isinstance(total, int):
+            # Provar que TODOS estão fora de um top-K de k>=1 é contradição.
+            k_req = int(rec.get("k_requested", 1) or 1)
+            if total > n_corpus - max(k_req, 1):
+                claim.append(
+                    f"total_provably_excluded={total} > n_corpus-k={n_corpus-max(k_req,1)}"
+                    " — impossível: sobram menos que K documentos fora do top-K")
+        if isinstance(bpairs, int) and bpairs > n_corpus:
+            claim.append(f"bound_pairs={bpairs} > n_corpus={n_corpus}")
+        if isinstance(pbound, int) and isinstance(total, int) and pbound != total:
+            # O commitment conta as exclusões pelo bound; os dois campos são o
+            # mesmo fato por dois caminhos. Divergir significa que um deles não
+            # descreve o que o motor fez.
+            claim.append(
+                f"pruned_by_bound={pbound} != total_provably_excluded={total}"
+                " — os dois campos descrevem o mesmo fato")
+    if claim:
+        return {"status": "INVALID",
+                "reason": "claim contradicts itself — " + "; ".join(claim),
+                "verified": False,
+                "signature_valid": True,
+                "claim_checks": claim}
+
+    reason = "Ed25519 signature + integrity hash verified"
+    if isinstance(n_corpus, int):
+        reason += "; claim sanity ok"
+    else:
+        # Honestidade sobre o escopo: sem n_corpus não há o que confrontar.
+        return {"status": "VALID",
+                "reason": reason + " (no n_corpus: claim not checkable)",
+                "verified": True, "claim_checkable": False}
+    return {"status": "VALID", "reason": reason, "verified": True,
+            "claim_checkable": True}
 
 
 def make_worm_record(

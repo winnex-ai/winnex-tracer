@@ -42,6 +42,10 @@ class WormStorage:
         self.hash_algorithm = hash_algorithm
         self._chain_file = self.base_path / ".chain"
         self._last_hash = b""
+        # Running count of blocks written (2026-10-30). Maintained from the
+        # on-disk state so the receipt's `block_number` is a real sequence
+        # number instead of the number of daily files.
+        self._block_count = 0
         self._index_path = self.base_path / ".worm_index.db"
         self._index_enabled = index
         self._load_chain_state()
@@ -161,6 +165,17 @@ class WormStorage:
             self._last_hash = bytes.fromhex(hex_str) if hex_str else b""
         else:
             self._last_hash = b""
+        # The block count is derived from the same read (2026-10-30): counting
+        # lines is O(file) and happens only here, once per instance, not per
+        # append. A missing directory means an empty chain, not an error.
+        n = 0
+        try:
+            for f in self.base_path.rglob("records.jsonl"):
+                with open(f) as fh:
+                    n += sum(1 for line in fh if line.strip())
+        except OSError:
+            n = 0
+        self._block_count = n
 
     def _get_daily_path(self) -> Path:
         """Get daily file path: base_path/YYYY/MM/DD/records.jsonl."""
@@ -242,6 +257,7 @@ class WormStorage:
                 # Persist chain state (ainda sob a trava: é o que torna a
                 # sequência ler→gravar→atualizar atômica entre processos).
                 self._last_hash = block_hash
+                self._block_count += 1
                 tmp_chain = self._chain_file.with_suffix(".chain.tmp")
                 with open(tmp_chain, "w") as f:
                     f.write(block_hash.hex())
@@ -262,11 +278,21 @@ class WormStorage:
                 aid, block, block_hash.hex(),
                 str(daily_path.relative_to(self.base_path)))
 
+        # BLOCK NUMBER (corrigido 2026-10-30). Era
+        # `len(list(rglob("records.jsonl")))` — o número de ARQUIVOS diários,
+        # não de blocos. Medido: 20 appends no mesmo dia devolviam
+        # block_number=1 em todos os 20 receipts. Um receipt é a testemunha que
+        # o cliente guarda; devolver 1 quando existem 20 é pior que não devolver
+        # nada, porque parece um contador.
+        #
+        # O número real é o do bloco gravado: um a mais que o anterior. O
+        # contador sai do mesmo estado que a cadeia — se o .chain dizia N, este
+        # bloco é N+1. Sem varrer disco no caminho quente.
         return {
             "worm_path": str(daily_path.relative_to(self.base_path)),
             "worm_hash": block_hash.hex(),
             "worm_prev_hash": block.get("prev_hash", ""),
-            "block_number": len(list(self.base_path.rglob("records.jsonl"))),
+            "block_number": self._block_count,
         }
 
     def get_audit_id(self, audit_id: str) -> Optional[dict]:
@@ -341,12 +367,97 @@ class WormStorage:
                 })
             prev = bytes.fromhex(block.get("block_hash", ""))
 
+        # TRUNCATION DETECTION (2026-10-30).
+        #
+        # The loop above verifies the chain AGAINST ITSELF: each block's
+        # prev_hash must match the previous block's block_hash. Deleting blocks
+        # from the END violates none of those relations — the survivors remain
+        # mutually consistent. Measured: 20 blocks → delete the last 5 →
+        # verification returns violations=0, chain_integrity_verified=True, and
+        # the .chain file is left pointing at a hash that no longer exists.
+        #
+        # The .chain is the only in-tree witness of "there was more". It is
+        # written under the same lock as the block, so it records the state the
+        # chain had at the last append. Comparing it against the LAST BLOCK
+        # ACTUALLY ON DISK detects tail truncation at zero cost.
+        #
+        # SCOPE, declared because it is easy to over-read: this catches tail
+        # truncation only. It does NOT catch an attacker who also rewrites
+        # .chain (one extra step, same permissions). Closing that requires an
+        # anchor the operator does not control — see verify_integrity_anchored.
+        truncation = None
+        try:
+            if self._chain_file.exists():
+                anchor = self._chain_file.read_text().strip()
+                if anchor and all_records:
+                    last_on_disk = all_records[-1].get("block_hash", "")
+                    if anchor != last_on_disk:
+                        truncation = {
+                            "expected_last_hash": anchor,
+                            "found_last_hash": last_on_disk,
+                            "blocks_on_disk": len(all_records),
+                        }
+                        violations.append({"block": "truncation", **truncation})
+                elif anchor and not all_records:
+                    # .chain has state but no blocks survive: everything was cut.
+                    truncation = {"expected_last_hash": anchor,
+                                  "found_last_hash": "", "blocks_on_disk": 0}
+                    violations.append({"block": "truncation", **truncation})
+        except (OSError, ValueError) as exc:  # unreadable/corrupt anchor
+            truncation = {"error": f"{type(exc).__name__}: {exc}"}
+
         return {
             "total_blocks": len(all_records),
             "violations": len(violations),
             "chain_integrity_verified": len(violations) == 0,
             "violations_detail": violations[:50],
+            "truncation_detected": truncation is not None and "error" not in truncation,
+            "truncation_detail": truncation,
             "algorithm": self.hash_algorithm,
+        }
+
+    def compute_anchor(self) -> Dict[str, Any]:
+        """The chain's current tip, as an EXTERNAL anchor an auditor can pin.
+
+        Returned so a caller can store it somewhere this process cannot rewrite
+        (another host, a signed receipt handed to the client, a public log).
+        `verify_integrity()` compares against the .chain on the same disk; that
+        catches tail truncation but not an attacker who rewrites both. An anchor
+        copied OUT of this filesystem closes that gap.
+        """
+        with open(self._chain_file) as f:
+            last_hash = f.read().strip()
+        n = 0
+        for f in sorted(self.base_path.rglob("records.jsonl")):
+            with open(f) as fh:
+                n += sum(1 for line in fh if line.strip())
+        return {"last_hash": last_hash, "block_count": n}
+
+    def verify_against_anchor(self, anchor: Dict[str, Any]) -> Dict[str, Any]:
+        """Verify the chain against a PREVIOUSLY PINNED anchor.
+
+        This is the check that cannot be defeated from inside this filesystem:
+        any block removed after the anchor was taken changes either the tip
+        hash or the block count, and both are compared here.
+        """
+        current = self.compute_anchor()
+        problems = []
+        if int(anchor.get("block_count", -1)) != current["block_count"]:
+            problems.append({
+                "field": "block_count",
+                "expected": int(anchor.get("block_count", -1)),
+                "found": current["block_count"],
+            })
+        if str(anchor.get("last_hash", "")) != current["last_hash"]:
+            problems.append({
+                "field": "last_hash",
+                "expected": str(anchor.get("last_hash", "")),
+                "found": current["last_hash"],
+            })
+        return {
+            "anchor_valid": not problems,
+            "problems": problems,
+            "current": current,
         }
 
     def get_record(self, block_hash: str) -> Optional[dict]:
