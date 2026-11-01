@@ -10,6 +10,50 @@ build se não corresponder.
 
 ## [Não publicado]
 
+### Corrigido — o modo "commitment" não certificava
+
+A distinção entre os dois modos existia no papel desde o `certmode.py`, mas não
+se sustentava na prática. `open_engine(..., certificate_mode="commitment")` sem
+config explícita construía com os defaults do motor — `random, s1=64` — que
+medem **0,00%** de cobertura. **O modo dizia "vou certificar" e a engine não
+tinha o que certificar.**
+
+Medido em MedMCQA real (12.000 docs, d=384, 30 queries):
+
+| como a engine é construída | cobertura | `ok` |
+|---|---:|---|
+| `open_engine(mode=commitment)` **sem** config | **0,00%** | **False** |
+| `open_engine(..., pca s1=64)` | 18,33% | True |
+| `open_engine(..., rank pleno)` | 99,98% | True |
+| `open_engine(..., config do roteador)` | **99,48%** | True |
+
+**A correção:** nos modos que certificam, `open_engine` pede a config ao
+roteador do `winnex-ai-normalize` — que mede `bound_fraction` e
+`bound_fraction_pca`, escolhe a base e declara `certifiable`.
+
+- `certificate_mode="off"` **não** roteia: o modo rápido quer os defaults
+  rápidos, e projetar para PCA só encareceria sem dar nada em troca.
+- Chaves explícitas em `**build_kwargs` **sempre vencem** o roteador. O
+  roteador é conveniência, não autoridade.
+- `eng.route_decision` expõe a decisão (basis, stage1_dim, stage2_dim,
+  k1_fraction, certifiable, certification_action). O modo só é auditável se a
+  config que ele escolheu também for visível.
+- Parâmetro `route=True` para desligar.
+
+**Os dois modos, medidos (MedMCQA real, 20.000 docs):**
+
+| modo | config aplicada | ms/query | cobertura |
+|---|---|---:|---:|
+| `off` | defaults (`random s1=64`) | **0,22** | n/a |
+| `commitment` | `pca_corpus s1=192` (do roteador) | 1,86 | **99,67%** |
+
+O modo rápido continua rápido; o modo certificado passou a entregar o que o
+nome promete. A separação é 8,5× em latência — que é o preço honesto de
+provar.
+
+**Tests:** 178 passed (170 anteriores + 8 novos em
+`test_dois_modos_2026_10_30.py`).
+
 ### Alterado — o `fsync` do `.chain` virou opt-in (`durable_chain`)
 
 O gargalo nº 3 da análise: **52% do custo do certificado era `fsync`**, e a

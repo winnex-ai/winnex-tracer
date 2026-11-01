@@ -176,6 +176,10 @@ class InstrumentedEngine:
         self.engine = engine
         self.mode = _validate_mode(mode)
         self.build_kwargs = dict(build_kwargs or {})
+        # Preenchido por `open_engine`: a decisão do roteador (ou None quando o
+        # roteador não foi consultado). O modo é auditável só se a config que
+        # ele escolheu também for visível.
+        self.route_decision = None
 
     # -- capacidades -------------------------------------------------------
     @property
@@ -270,17 +274,38 @@ class InstrumentedEngine:
 # Construção
 # ---------------------------------------------------------------------------
 def open_engine(corpus, certificate_mode: str = CertificateMode.COMMITMENT,
-                **build_kwargs) -> InstrumentedEngine:
+                *, route: bool = True, **build_kwargs) -> InstrumentedEngine:
     """Constrói uma engine do Madhava já com o modo de certificado explícito.
 
     Exemplo:
-        eng = open_engine(X, certificate_mode="commitment", k=3,
-                          basis="pca_corpus", stage1_dim=64, stage2_dim=128)
+        eng = open_engine(X, certificate_mode="commitment", k=3)
+        # -> o roteador escolhe a config que CERTIFICA
+
+    **A escolha da config faz parte do modo (2026-10-30).**
+
+    Antes, `open_engine(..., certificate_mode="commitment")` sem config
+    explícita construía com os defaults do motor (`random`, s1=64) — a config
+    que mede **0,00%** de cobertura. O modo dizia "vou certificar" e a engine
+    não tinha o que certificar. Medido em MedMCQA real (12.000 docs, d=384):
+
+        open_engine(mode=commitment) SEM config        0,00%  ok=False
+        open_engine(..., pca s1=64)                   18,33%  ok=True
+        open_engine(..., rank pleno s1=s2=384)        99,98%  ok=True
+        open_engine(..., config do ROTEADOR)          99,48%  ok=True
+
+    O roteador (`winnex-ai-normalize`) mede `bound_fraction` e
+    `bound_fraction_pca`, escolhe a base, e declara `certifiable`. Usá-lo é o
+    que torna o modo "commitment" verdadeiro em vez de nominal.
 
     Args:
         corpus: (n, d) embeddings.
         certificate_mode: "off" | "commitment" | "audited".
-        **build_kwargs: repassados a `winnex_madhava.build_engine`.
+        route: quando True (padrão), pede a config ao roteador nos modos que
+            certificam. `certificate_mode="off"` NÃO roteia: o modo rápido
+            quer os defaults rápidos, e projetar para PCA só o encareceria sem
+            dar nada em troca.
+        **build_kwargs: repassados a `winnex_madhava.build_engine`. Chaves
+            explícitas SEMPRE vencem o roteador.
 
     Raises:
         CertificateModeError: modo inválido.
@@ -296,8 +321,48 @@ def open_engine(corpus, certificate_mode: str = CertificateMode.COMMITMENT,
 
     kw = dict(build_kwargs)
     kw.setdefault("dim", int(np.asarray(corpus).shape[1]))
+
+    rota = None
+    if route and mode in CertificateMode.CERTIFYING:
+        rota = _route_for_certificate(corpus, kw.get("dim"))
+        if rota is not None:
+            for chave in ("basis", "stage1_dim", "stage2_dim", "k1_fraction"):
+                if chave in rota and chave not in build_kwargs:
+                    kw[chave] = rota[chave]
+
     eng = wm.build_engine(corpus, **kw)
-    return InstrumentedEngine(eng, mode, build_kwargs=kw)
+    inst = InstrumentedEngine(eng, mode, build_kwargs=kw)
+    # Guardar a decisão do roteador torna o modo auditável: quem lê a engine
+    # sabe QUAL config foi escolhida e se ela certifica.
+    inst.route_decision = rota
+    return inst
+
+
+def _route_for_certificate(corpus, dim):
+    """Pede a config ao roteador do winnex-ai-normalize.
+
+    Best-effort e declarado: se o normalize não estiver instalado, devolve None
+    e a engine usa os defaults. Nesse caso o chamador deve conferir a cobertura
+    com `coverage_report` antes de assinar — que é o contrato do modo.
+    """
+    try:
+        import winnex_ai_normalize as norm
+    except ImportError:  # pragma: no cover
+        return None
+    try:
+        rep = norm.audit_corpus(
+            corpus, dim=dim,
+            cfg=norm.QualityConfig(fail_on_recall=False, recall_floor=0.0))
+    except Exception:  # pragma: no cover - roteador é opcional
+        return None
+    return {
+        "basis": rep.basis,
+        "stage1_dim": int(rep.stage1_dim),
+        "stage2_dim": int(rep.stage2_dim),
+        "k1_fraction": float(rep.k1_fraction),
+        "certifiable": bool(getattr(rep, "certifiable", False)),
+        "certification_action": getattr(rep, "certification_action", ""),
+    }
 
 
 # ---------------------------------------------------------------------------
