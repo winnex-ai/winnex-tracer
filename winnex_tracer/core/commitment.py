@@ -158,6 +158,14 @@ def commitment_to_payload(
         "bound_violations": int(commitment["bound_violations"]),
         "indices": [int(i) for i in commitment.get("indices", [])],
         "sampled_records": samples,
+        # MARCADOR DE DEGRADAÇÃO (2026-11-06). `total_provably_excluded == 0`
+        # tem duas causas opostas: (a) o bound foi frouxo demais para provar
+        # algo — é uma MEDIÇÃO; (b) a prova nunca foi calculada porque o pool
+        # não rendeu K resultados — é DEGRADAÇÃO. Antes deste campo os dois
+        # casos produziam um registro assinado idêntico, e um zero degradado
+        # podia ser lido como "o bound não excluiu nada". Vazio = medido.
+        "degraded_reason": str(commitment.get("degraded_reason", "")),
+        "returned": int(commitment.get("returned", 0)),
     }
     # SCOPE FIELDS (2026-10-30) — os campos que tornam a afirmação CHECÁVEL.
     #
